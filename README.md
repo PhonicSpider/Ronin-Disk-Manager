@@ -19,7 +19,7 @@
 
 ## Overview
 
-Ronin Disk Manager scans your drives, visualizes directory sizes in a tree view, and lets you execute bulk **Move** or **Delete** operations on selected items — all backed by PowerShell with real-time console output.
+Ronin Disk Manager scans your drives, visualizes directory sizes in a tree view, and lets you execute bulk **Move** or **Delete** operations on selected items - all backed by PowerShell with real-time console output.
 
 On NTFS drives it reads the Master File Table directly via the USN journal (the same technique WizTree uses), giving near-instant enumeration regardless of how many files are on the volume. Non-NTFS volumes (FAT32, exFAT, USB, network shares) fall back to a fast recursive directory walker automatically.
 
@@ -27,14 +27,14 @@ On NTFS drives it reads the Master File Table directly via the USN journal (the 
 
 ## Features
 
-- **MFT-based scanning** — USN journal enumeration on NTFS for fast, complete disk analysis
-- **Automatic fallback** — standard directory walker for FAT32, exFAT, and network drives
-- **Tree view** — lazy-loading, virtualized, sorted by size with percentage of root total
-- **Move operations** — PowerShell `Move-Item` with Force, WhatIf, Verbose, NeverOverwrite, LiteralPath, and pattern filters
-- **Delete operations** — PowerShell `Remove-Item` with Force, Recurse, WhatIf, Verbose, LiteralPath, and pattern filters
-- **Dry-run mode** — WhatIf flag on both operations lets you preview changes before committing
-- **Real-time console** — live PowerShell stdout/stderr output streamed to the in-app console
-- **Ronin theme** — dark crimson, orange, cyan, and black color scheme
+- **MFT-based scanning** - USN journal enumeration on NTFS for fast, complete disk analysis
+- **Automatic fallback** - standard directory walker for FAT32, exFAT, and network drives
+- **Tree view** - lazy-loading, virtualized, sorted by size with percentage of root total
+- **Move operations** - PowerShell `Move-Item` with Force, WhatIf, Verbose, NeverOverwrite, LiteralPath, and pattern filters
+- **Delete operations** - PowerShell `Remove-Item` with Force, Recurse, WhatIf, Verbose, LiteralPath, and pattern filters
+- **Dry-run mode** - WhatIf flag on both operations lets you preview changes before committing
+- **Real-time console** - live PowerShell stdout/stderr output streamed to the in-app console
+- **Ronin theme** - dark crimson, orange, cyan, and black color scheme
 
 ---
 
@@ -77,10 +77,10 @@ Output: `RoninDiskManager/bin/Release/net8.0-windows/win-x64/publish/RoninDiskMa
 
 ## How It Works
 
-1. **Scan** — Enter a path and click Scan. On NTFS, the engine opens the raw volume (`\\.\C:`), streams all MFT records via `FSCTL_ENUM_USN_DATA`, resolves full paths, and populates file sizes in a parallel directory-batched pass. On other filesystems it falls back to a recursive `EnumerateFileSystemInfos` walk.
-2. **Browse** — The tree view shows directories sorted by size. Expand any node to see its children.
-3. **Act** — Select a node, choose Move or Delete, configure flags and filters, then click Execute. A confirmation dialog is shown before any delete.
-4. **Review** — All PowerShell output appears in the console panel in real time. Use WhatIf for a dry run before committing.
+1. **Scan** - Enter a path and click Scan. On NTFS, the engine opens the raw volume (`\\.\C:`), streams all MFT records via `FSCTL_ENUM_USN_DATA`, resolves full paths, and populates file sizes in a parallel directory-batched pass. On other filesystems it falls back to a recursive `EnumerateFileSystemInfos` walk.
+2. **Browse** - The tree view shows directories sorted by size. Expand any node to see its children.
+3. **Act** - Select a node, choose Move or Delete, configure flags and filters, then click Execute. A confirmation dialog is shown before any delete.
+4. **Review** - All PowerShell output appears in the console panel in real time. Use WhatIf for a dry run before committing.
 
 ---
 
