@@ -55,9 +55,9 @@ On NTFS drives it reads the Master File Table directly via the USN journal (the 
 
 1. Go to the [**Releases**](https://github.com/PhonicSpider/RoninDiskManager/releases/latest) page
 2. Download `RoninDiskManager.exe` under the latest release
-3. Right-click → **Run as Administrator**
+3. Right-click -> **Run as Administrator**
 
-No installation or .NET runtime required — the exe is fully self-contained.
+No installation or .NET runtime required - the exe is fully self-contained.
 
 ---
 
