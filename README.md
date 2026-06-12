@@ -30,10 +30,14 @@ On NTFS drives it reads the Master File Table directly via the USN journal (the 
 - **MFT-based scanning** - USN journal enumeration on NTFS for fast, complete disk analysis
 - **Automatic fallback** - standard directory walker for FAT32, exFAT, and network drives
 - **Tree view** - lazy-loading, virtualized, sorted by size with percentage of root total
+- **Treemap view** - squarified treemap visualization with multi-level drill-down (like WinDirStat)
 - **Move operations** - PowerShell `Move-Item` with Force, WhatIf, Verbose, NeverOverwrite, LiteralPath, and pattern filters
 - **Delete operations** - PowerShell `Remove-Item` with Force, Recurse, WhatIf, Verbose, LiteralPath, and pattern filters
 - **Dry-run mode** - WhatIf flag on both operations lets you preview changes before committing
 - **Real-time console** - live PowerShell stdout/stderr output streamed to the in-app console
+- **Context menus** - right-click any tree node or treemap tile to open in Explorer, copy path, move, or delete
+- **Status bar** - live display of selected item path, size, percentage of root, and child count
+- **Keyboard shortcuts** - `Ctrl+E` open in Explorer, `Ctrl+Shift+C` copy path
 - **Ronin theme** - dark crimson, orange, cyan, and black color scheme
 
 ---
@@ -53,7 +57,7 @@ On NTFS drives it reads the Master File Table directly via the USN journal (the 
 
 ### Download & Run (easiest)
 
-1. Go to the [**Releases**](https://github.com/PhonicSpider/RoninDiskManager/releases/latest) page
+1. Go to the [**Releases**](https://github.com/PhonicSpider/Ronin-Disk-Manager/releases/latest) page
 2. Download `RoninDiskManager.exe` under the latest release
 3. Right-click → **Run as Administrator**
 
@@ -67,7 +71,7 @@ Requires [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 
 ```powershell
 # Clone the repository
-git clone https://github.com/PhonicSpider/RoninDiskManager.git
+git clone https://github.com/PhonicSpider/Ronin-Disk-Manager.git
 cd RoninDiskManager
 
 # Run (builds automatically)
