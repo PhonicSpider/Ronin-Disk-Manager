@@ -38,23 +38,31 @@ public partial class DiskNodeViewModel : ObservableObject
         _ => $"{_node.Children.Count:N0} items"
     };
 
-    public string SizeDisplay
+    // ── kept for any legacy bindings ──────────────────────────────────
+    public string SizeDisplay => SizeBytes <= 0 ? string.Empty : $"  [{SizeText} / {PctText}]";
+
+    public string SizeText => _node.SizeBytes switch
+    {
+        <= 0             => string.Empty,
+        >= 1_073_741_824 => $"{_node.SizeBytes / 1_073_741_824.0:F1} GB",
+        >= 1_048_576     => $"{_node.SizeBytes / 1_048_576.0:F0} MB",
+        _                => $"{_node.SizeBytes / 1024.0:F0} KB"
+    };
+
+    public string PctText
     {
         get
         {
             if (_node.SizeBytes <= 0) return string.Empty;
-
-            string size = _node.SizeBytes switch
-            {
-                >= 1_073_741_824 => $"{_node.SizeBytes / 1_073_741_824.0:F1} GB",
-                >= 1_048_576     => $"{_node.SizeBytes / 1_048_576.0:F0} MB",
-                _                => $"{_node.SizeBytes / 1024.0:F0} KB"
-            };
-
             double pct = _node.SizeBytes / (double)_rootSize * 100;
-            return $"  [{size} / {pct:F1}%]";
+            return $"{pct:F1}%";
         }
     }
+
+    /// <summary>0–80 px fill width for the inline proportion bar.</summary>
+    public double BarWidth => _rootSize <= 0 || _node.SizeBytes <= 0
+        ? 0.0
+        : Math.Min(80.0, _node.SizeBytes / (double)_rootSize * 80.0);
 
     /// <summary>Rich multi-line tooltip shown on tree nodes.</summary>
     public string ToolTipText

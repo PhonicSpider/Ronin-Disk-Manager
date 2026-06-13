@@ -33,6 +33,7 @@
         <SolidColorBrush x:Key="Ronin.BorderHover"  Color="#6A1010"/>
         <SolidColorBrush x:Key="Ronin.TextDim"      Color="#505050"/>
         <SolidColorBrush x:Key="Ronin.TextMid"      Color="#909090"/>
+        <SolidColorBrush x:Key="Ronin.TextBright"   Color="#CFCFCF"/>
         <SolidColorBrush x:Key="Ronin.ConsoleBg"    Color="#060606"/>
         <SolidColorBrush x:Key="Ronin.SelectBg"     Color="#1A0808"/>
         <SolidColorBrush x:Key="Ronin.HoverBg"      Color="#131313"/>
@@ -53,19 +54,22 @@
         <!-- ── Tree item hover + selection style ─────────────────────────── -->
         <Style x:Key="RoninTreeItem" TargetType="TreeViewItem"
                BasedOn="{StaticResource {x:Type TreeViewItem}}">
-            <Setter Property="IsExpanded"  Value="{Binding IsExpanded, Mode=TwoWay}"/>
-            <Setter Property="IsSelected"  Value="{Binding IsSelected,  Mode=TwoWay}"/>
-            <Setter Property="Padding"     Value="2,3"/>
-            <Setter Property="Foreground"  Value="#C8C8C8"/>
-            <Setter Property="Background"  Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="IsExpanded"     Value="{Binding IsExpanded, Mode=TwoWay}"/>
+            <Setter Property="IsSelected"     Value="{Binding IsSelected,  Mode=TwoWay}"/>
+            <Setter Property="Padding"        Value="2,1"/>
+            <Setter Property="Foreground"     Value="#C8C8C8"/>
+            <Setter Property="Background"     Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0,0,0,0"/>
+            <Setter Property="BorderBrush"    Value="Transparent"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background" Value="{StaticResource Ronin.HoverBg}"/>
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="{StaticResource Ronin.SelectBg}"/>
-                    <Setter Property="Foreground" Value="{StaticResource Ronin.CyanBright}"/>
+                    <Setter Property="Background"   Value="{StaticResource Ronin.SelectBg}"/>
+                    <Setter Property="Foreground"   Value="{StaticResource Ronin.CyanBright}"/>
+                    <Setter Property="BorderBrush"  Value="{StaticResource Ronin.Orange}"/>
+                    <Setter Property="BorderThickness" Value="2,0,0,0"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -243,25 +247,64 @@
                             <TreeView.Resources>
                                 <HierarchicalDataTemplate DataType="{x:Type vm:DiskNodeViewModel}"
                                                           ItemsSource="{Binding Children}">
-                                    <StackPanel Orientation="Horizontal" Margin="1,1">
+                                    <StackPanel Orientation="Horizontal" Margin="0,2,10,2">
                                         <StackPanel.ToolTip>
                                             <ToolTip Style="{StaticResource RoninTooltip}"
                                                      Content="{Binding ToolTipText}"/>
                                         </StackPanel.ToolTip>
+
+                                        <!-- left accent line: orange for dirs, Light for files -->
+                                        <Border Width="2" Margin="0,0,6,0" CornerRadius="1"
+                                                VerticalAlignment="Stretch">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="#909090"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsDirectory}" Value="True">
+                                                            <Setter Property="Background" Value="{StaticResource Ronin.OrangeDim}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                        </Border>
+
+                                        <!-- icon -->
                                         <TextBlock Text="{Binding Icon}"
-                                                   FontFamily="Segoe UI Emoji"
-                                                   FontSize="13"
+                                                   FontFamily="Segoe UI Emoji" FontSize="12"
                                                    Foreground="{StaticResource Ronin.Orange}"
+                                                   VerticalAlignment="Center" Margin="0,0,5,0"/>
+
+                                        <!-- name + proportion bar stacked vertically -->
+                                        <StackPanel MinWidth="90" VerticalAlignment="Center"
+                                                    Margin="0,0,10,0">
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontSize="12.5" Foreground="#DCDCDC"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <!-- proportion bar: fixed 80px track, BarWidth fill -->
+                                            <Grid Margin="0,3,0,0" Height="2" Width="80"
+                                                  HorizontalAlignment="Left">
+                                                <Border Background="#1E1E1E" CornerRadius="1"/>
+                                                <Border Background="{StaticResource Ronin.CyanBright}"
+                                                        Width="{Binding BarWidth}"
+                                                        HorizontalAlignment="Left"
+                                                        CornerRadius="1"/>
+                                            </Grid>
+                                        </StackPanel>
+
+                                        <!-- size value: Orange -->
+                                        <TextBlock Text="{Binding SizeText}"
+                                                   Width="62" TextAlignment="Right"
+                                                   FontSize="13" FontFamily="Consolas"
+                                                   Foreground="#E06020"
+                                                   VerticalAlignment="Center"/>
+
+                                        <!-- percentage: muted cyan -->
+                                        <TextBlock Text="{Binding PctText}"
+                                                   Width="44" TextAlignment="Right"
+                                                   FontSize="12" FontFamily="Consolas"
+                                                   Foreground="#486878"
                                                    VerticalAlignment="Center"
-                                                   Margin="0,0,6,0"/>
-                                        <TextBlock Text="{Binding Name}"
-                                                   FontSize="13"
-                                                   Foreground="#C8C8C8"
-                                                   VerticalAlignment="Center"/>
-                                        <TextBlock Text="{Binding SizeDisplay}"
-                                                   FontSize="11"
-                                                   Foreground="{StaticResource Ronin.Cyan}"
-                                                   VerticalAlignment="Center"/>
+                                                   Margin="4,0,0,0"/>
                                     </StackPanel>
                                 </HierarchicalDataTemplate>
                             </TreeView.Resources>
@@ -447,7 +490,7 @@
                                               IsChecked="{Binding MoveForce}"
                                               Style="{StaticResource FlagCheck}"
                                               ToolTip="Overwrites existing and read-only files without prompting."/>
-                                    <CheckBox Content="WhatIf  (dry run — no changes made)"
+                                    <CheckBox Content="WhatIf  (dry run, no changes made)"
                                               IsChecked="{Binding MoveWhatIf}"
                                               Style="{StaticResource FlagCheck}"
                                               ToolTip="Simulates the move and prints what would happen, without making any changes."/>
@@ -496,7 +539,7 @@
                                               IsChecked="{Binding DeleteRecurse}"
                                               Style="{StaticResource FlagCheck}"
                                               ToolTip="Deletes all files and subdirectories inside the selected folder recursively."/>
-                                    <CheckBox Content="WhatIf  (dry run — no changes made)"
+                                    <CheckBox Content="WhatIf  (dry run, no changes made)"
                                               IsChecked="{Binding DeleteWhatIf}"
                                               Style="{StaticResource FlagCheck}"
                                               ToolTip="Simulates the delete and prints what would happen, without removing anything."/>
@@ -546,6 +589,246 @@
                     </Grid>
                 </TabItem>
 
+                <!-- ═══════════════════════════════════════ TAB: TOOLS -->
+                <TabItem Header="Tools">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  Background="{StaticResource Ronin.PanelBg}">
+                        <StackPanel Margin="12,10,12,14">
+
+                            <!-- Admin note -->
+                            <Border Background="#0D0D0D"
+                                    BorderBrush="{StaticResource Ronin.BorderSubtle}"
+                                    BorderThickness="1" CornerRadius="3"
+                                    Padding="9,6" Margin="0,0,0,10">
+                                <TextBlock FontSize="10" TextWrapping="Wrap"
+                                           Foreground="{StaticResource Ronin.TextMid}">
+                                    <Run Text="⚡"/>
+                                    <Run Text=" Commands run in the existing PowerShell session. Most require Administrator. Launch as Admin if output shows access errors."/>
+                                </TextBlock>
+                            </Border>
+
+                            <!-- ══ DISK HEALTH ════════════════════════════════ -->
+                            <Expander IsExpanded="True" Margin="0,0,0,6">
+                                <Expander.Header>
+                                    <TextBlock Text="💽   DISK HEALTH"
+                                               FontSize="9" FontWeight="Bold"
+                                               Foreground="{StaticResource Ronin.TextBright}"/>
+                                </Expander.Header>
+                                <StackPanel Margin="4,6,0,4">
+
+                                    <TextBlock Text="Drive" Style="{StaticResource SectionLabel}" Margin="0,4,0,4"/>
+                                    <ComboBox ItemsSource="{Binding AvailableDrives}"
+                                              SelectedItem="{Binding ChkdskDrive}"
+                                              Background="#141414" Foreground="#D0D0D0"
+                                              BorderBrush="{StaticResource Ronin.TextBright}"
+                                              ToolTip="Select the drive to check. Only mounted, ready drives are listed."/>
+
+                                    <TextBlock Text="FLAGS" Style="{StaticResource SectionLabel}"/>
+                                    <CheckBox Content="Fix errors  (/f)"
+                                              IsChecked="{Binding ChkdskFixErrors}"
+                                              Style="{StaticResource FlagCheck}"
+                                              ToolTip="Automatically fix file system errors found during the scan. On the system drive this schedules the check for next restart."/>
+                                    <CheckBox Content="Locate bad sectors  (/r, implies /f)"
+                                              IsChecked="{Binding ChkdskBadSectors}"
+                                              Style="{StaticResource FlagCheck}"
+                                              ToolTip="Scans every sector and attempts to recover readable data from bad sectors. Significantly longer than /f alone. Also schedules on next restart for the system drive."/>
+
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="6"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0"
+                                                Content="▶  Run CHKDSK"
+                                                Command="{Binding RunChkdskCommand}"
+                                                Height="28" FontSize="11"
+                                                ToolTip="Run CHKDSK with the selected drive and flags. Outputs results to the console below."/>
+                                        <Button Grid.Column="2"
+                                                Content="▶  Read-Only Scan"
+                                                Command="{Binding RunChkdskReadOnlyCommand}"
+                                                Height="28" FontSize="11"
+                                                ToolTip="Scans the selected drive for errors without fixing them or requiring a restart. Safe to run on any drive at any time."/>
+                                    </Grid>
+                                </StackPanel>
+                            </Expander>
+
+                            <Separator Background="{StaticResource Ronin.BorderSubtle}" Margin="0,2,0,6"/>
+
+                            <!-- ══ SYSTEM INTEGRITY ═══════════════════════════ -->
+                            <Expander IsExpanded="True" Margin="0,0,0,6">
+                                <Expander.Header>
+                                    <TextBlock Text="🔧   SYSTEM INTEGRITY  (SFC)"
+                                               FontSize="9" FontWeight="Bold"
+                                               Foreground="{StaticResource Ronin.TextBright}"/>
+                                </Expander.Header>
+                                <StackPanel Margin="4,6,0,4">
+                                    <TextBlock Text="System File Checker scans and repairs protected Windows files."
+                                               FontSize="10" Foreground="{StaticResource Ronin.TextMid}"
+                                               TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+                                    <Button Content="▶  Scan &amp; Repair  (sfc /scannow)"
+                                            Command="{Binding RunSfcScanCommand}"
+                                            HorizontalAlignment="Stretch" Height="28" FontSize="11"
+                                            Margin="0,3,0,3"
+                                            ToolTip="Scans all protected system files and replaces corrupted or missing ones with cached copies from %WinDir%\System32\dllcache. Requires Administrator. Output is also written to C:\Windows\Logs\CBS\CBS.log."/>
+                                    <Button Content="▶  Verify Only  (sfc /verifyonly)"
+                                            Command="{Binding RunSfcVerifyCommand}"
+                                            HorizontalAlignment="Stretch" Height="28" FontSize="11"
+                                            Margin="0,3,0,3"
+                                            ToolTip="Scans all protected system files for integrity violations but makes no repairs. Useful for diagnosing issues without changing anything."/>
+                                </StackPanel>
+                            </Expander>
+
+                            <Separator Background="{StaticResource Ronin.BorderSubtle}" Margin="0,2,0,6"/>
+
+                            <!-- ══ DISM ════════════════════════════════════════ -->
+                            <Expander IsExpanded="False" Margin="0,0,0,6">
+                                <Expander.Header>
+                                    <TextBlock Text="🪟   WINDOWS IMAGE  (DISM)"
+                                               FontSize="9" FontWeight="Bold"
+                                               Foreground="{StaticResource Ronin.TextBright}"/>
+                                </Expander.Header>
+                                <StackPanel Margin="4,6,0,4">
+                                    <TextBlock FontSize="10" Foreground="{StaticResource Ronin.TextMid}"
+                                               TextWrapping="Wrap" Margin="0,0,0,8"
+                                               Text="DISM repairs the Windows component store. Run CheckHealth first, then ScanHealth, then RestoreHealth only if needed."/>
+
+                                    <Button Content="▶  Check Health"
+                                            Command="{Binding RunDismCheckCommand}"
+                                            HorizontalAlignment="Stretch" Height="28" FontSize="11"
+                                            Margin="0,3,0,3"
+                                            ToolTip="Reads the component store's flag file to quickly determine if a corruption has been detected. Takes only a few seconds and makes no changes."/>
+                                    <Button Content="▶  Scan Health"
+                                            Command="{Binding RunDismScanCommand}"
+                                            HorizontalAlignment="Stretch" Height="28" FontSize="11"
+                                            Margin="0,3,0,3"
+                                            ToolTip="Fully scans the component store for corruption. Takes several minutes. Makes no repairs. Run RestoreHealth to fix anything found."/>
+
+                                    <TextBlock Text="RESTORE SOURCE  (optional)"
+                                               Style="{StaticResource SectionLabel}"/>
+                                    <TextBlock FontSize="10" Foreground="{StaticResource Ronin.TextMid}"
+                                               TextWrapping="Wrap" Margin="0,0,0,6"
+                                               Text="Leave blank to use Windows Update. Point to a mounted ISO or WIM to repair offline."/>
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Right"
+                                                Content="…" Width="30" Margin="4,0,0,0"
+                                                Command="{Binding BrowseDismSourceCommand}"
+                                                ToolTip="Browse to a folder containing a WIM or ESD repair source (e.g. a mounted Windows ISO at D:\Sources\install.wim)."/>
+                                        <TextBox Text="{Binding DismSource, UpdateSourceTrigger=PropertyChanged}"
+                                                 mah:TextBoxHelper.Watermark="e.g.  D:\Sources\install.wim"
+                                                 Background="#141414" Foreground="#D0D0D0"
+                                                 BorderBrush="{StaticResource Ronin.Border}"
+                                                 ToolTip="Optional repair source. Leave blank to download from Windows Update."/>
+                                    </DockPanel>
+
+                                    <Button Content="▶  Restore Health"
+                                            Command="{Binding RunDismRestoreCommand}"
+                                            HorizontalAlignment="Stretch" Height="28" FontSize="11"
+                                            Margin="0,8,0,3"
+                                            Style="{DynamicResource MahApps.Styles.Button.Square.Accent}"
+                                            ToolTip="Repairs component store corruption using Windows Update or the specified source. Can take 10–20 minutes. The system remains usable during the repair."/>
+
+                                    <Separator Background="{StaticResource Ronin.BorderSubtle}" Margin="0,8,0,6"/>
+
+                                    <Border Background="#1C0505" CornerRadius="3"
+                                            BorderBrush="#5A0A0A" BorderThickness="1"
+                                            Padding="8,6" Margin="0,0,0,6">
+                                        <TextBlock FontSize="10" Foreground="#E04040" TextWrapping="Wrap"
+                                                   Text="⚠  Component Cleanup permanently removes old update backups. You will not be able to uninstall those updates afterward."/>
+                                    </Border>
+                                    <Button Content="⚠  Cleanup Components"
+                                            Command="{Binding RunDismCleanupCommand}"
+                                            HorizontalAlignment="Stretch" Height="28" FontSize="11"
+                                            Margin="0,0,0,3"
+                                            Foreground="#E06020"
+                                            ToolTip="Runs DISM /StartComponentCleanup /ResetBase to shrink the WinSxS folder by permanently removing superseded update backups. A confirmation dialog will appear."/>
+                                </StackPanel>
+                            </Expander>
+
+                            <Separator Background="{StaticResource Ronin.BorderSubtle}" Margin="0,2,0,6"/>
+
+                            <!-- ══ NETWORK ═════════════════════════════════════ -->
+                            <Expander IsExpanded="False" Margin="0,0,0,6">
+                                <Expander.Header>
+                                    <TextBlock Text="🌐   NETWORK"
+                                               FontSize="9" FontWeight="Bold"
+                                               Foreground="{StaticResource Ronin.TextBright}"/>
+                                </Expander.Header>
+                                <StackPanel Margin="4,6,0,4">
+
+                                    <Button Content="▶  Flush DNS Cache"
+                                            Command="{Binding RunFlushDnsCommand}"
+                                            HorizontalAlignment="Stretch" Height="28" FontSize="11"
+                                            Margin="0,3,0,3"
+                                            ToolTip="Clears the local DNS resolver cache (ipconfig /flushdns). Useful after changing DNS settings or fixing name resolution errors. Takes effect immediately with no reboot."/>
+                                    <Button Content="▶  Release &amp; Renew IP"
+                                            Command="{Binding RunRenewIpCommand}"
+                                            HorizontalAlignment="Stretch" Height="28" FontSize="11"
+                                            Margin="0,3,0,3"
+                                            ToolTip="Releases the current DHCP IP lease then requests a new one (ipconfig /release then /renew). Useful when the network adapter gets stuck with an incorrect or duplicate address."/>
+
+                                    <Separator Background="{StaticResource Ronin.BorderSubtle}" Margin="0,6,0,6"/>
+
+                                    <Border Background="#1C0505" CornerRadius="3"
+                                            BorderBrush="#5A0A0A" BorderThickness="1"
+                                            Padding="8,6" Margin="0,0,0,6">
+                                        <TextBlock FontSize="10" Foreground="#E04040" TextWrapping="Wrap"
+                                                   Text="⚠  The following commands require a reboot to take effect."/>
+                                    </Border>
+                                    <Button Content="⚠  Reset Winsock"
+                                            Command="{Binding RunWinsockResetCommand}"
+                                            HorizontalAlignment="Stretch" Height="28" FontSize="11"
+                                            Margin="0,3,0,3"
+                                            Foreground="#E06020"
+                                            ToolTip="Resets the Winsock catalog to a clean state (netsh winsock reset). Fixes connectivity issues caused by corrupted LSP entries or malware. Requires reboot."/>
+                                    <Button Content="⚠  Reset TCP/IP Stack"
+                                            Command="{Binding RunTcpIpResetCommand}"
+                                            HorizontalAlignment="Stretch" Height="28" FontSize="11"
+                                            Margin="0,3,0,3"
+                                            Foreground="#E06020"
+                                            ToolTip="Resets the TCP/IP stack to default settings (netsh int ip reset). Use this as a last resort when other network fixes have not worked. Requires reboot."/>
+                                </StackPanel>
+                            </Expander>
+
+                            <Separator Background="{StaticResource Ronin.BorderSubtle}" Margin="0,2,0,6"/>
+
+                            <!-- ══ MAINTENANCE ════════════════════════════════ -->
+                            <Expander IsExpanded="False" Margin="0,0,0,6">
+                                <Expander.Header>
+                                    <TextBlock Text="🧰   MAINTENANCE"
+                                               FontSize="9" FontWeight="Bold"
+                                               Foreground="{StaticResource Ronin.TextBright}"/>
+                                </Expander.Header>
+                                <StackPanel Margin="4,6,0,4">
+
+                                    <Button Content="▶  Disk Cleanup"
+                                            Command="{Binding RunDiskCleanupCommand}"
+                                            HorizontalAlignment="Stretch" Height="28" FontSize="11"
+                                            Margin="0,3,0,3"
+                                            ToolTip="Opens the Windows Disk Cleanup utility (cleanmgr.exe). Select which file types to remove in the dialog that appears."/>
+
+                                    <Separator Background="{StaticResource Ronin.BorderSubtle}" Margin="0,6,0,6"/>
+
+                                    <Border Background="#1C0505" CornerRadius="3"
+                                            BorderBrush="#5A0A0A" BorderThickness="1"
+                                            Padding="8,6" Margin="0,0,0,6">
+                                        <TextBlock FontSize="10" Foreground="#E04040" TextWrapping="Wrap"
+                                                   Text="⚠  Memory Diagnostic requires an immediate system restart. Save all work before running."/>
+                                    </Border>
+                                    <Button Content="⚠  Memory Diagnostic"
+                                            Command="{Binding RunMemoryDiagCommand}"
+                                            HorizontalAlignment="Stretch" Height="28" FontSize="11"
+                                            Margin="0,3,0,3"
+                                            Foreground="#E06020"
+                                            ToolTip="Schedules a Windows Memory Diagnostic test (mdsched.exe) and restarts your computer to scan RAM for errors. Results are shown after Windows restarts."/>
+                                </StackPanel>
+                            </Expander>
+
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
             </TabControl>
         </Grid>
 
@@ -558,7 +841,7 @@
             <DockPanel LastChildFill="True">
                 <!-- Keyboard shortcut hints on the right -->
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                    <TextBlock Text="Ctrl+E  Explorer"
+                                  <TextBlock Text="Ctrl+E  Explorer"
                                FontSize="10" Foreground="{StaticResource Ronin.TextDim}"
                                VerticalAlignment="Center" Margin="0,0,12,0"/>
                     <TextBlock Text="Ctrl+Shift+C  Copy Path"
@@ -569,7 +852,7 @@
                 <TextBlock Text="{Binding StatusBarText}"
                            FontSize="11"
                            FontFamily="Consolas"
-                           Foreground="{StaticResource Ronin.CyanDim}"
+                           Foreground="{StaticResource Ronin.TextBright}"
                            VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis"/>
             </DockPanel>

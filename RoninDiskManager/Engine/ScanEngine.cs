@@ -28,7 +28,7 @@ public class ScanEngine
 
         if (isNtfs)
         {
-            logConsole("[Engine] NTFS volume detected — using MFT scanner.");
+            logConsole("[Engine] NTFS volume detected. Using MFT scanner.");
             try
             {
                 return await _mft.ScanAsync(rootPath, logConsole, progress, ct);
@@ -36,12 +36,12 @@ public class ScanEngine
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
-                logConsole($"[Engine] MFT scan failed ({ex.Message}) — falling back to directory walker.");
+                logConsole($"[Engine] MFT scan failed ({ex.Message}), falling back to directory walker.");
             }
         }
         else
         {
-            logConsole("[Engine] Non-NTFS volume detected — using fallback directory walker.");
+            logConsole("[Engine] Non-NTFS volume detected. Using fallback directory walker.");
         }
 
         // ── Fallback path ─────────────────────────────────────────────────────
@@ -61,7 +61,7 @@ public class ScanEngine
         }
         catch (Exception ex)
         {
-            logConsole($"[Engine] Could not detect filesystem ({ex.Message}) — assuming non-NTFS.");
+            logConsole($"[Engine] Could not detect filesystem ({ex.Message}). Assuming non-NTFS.");
             return false;
         }
     }

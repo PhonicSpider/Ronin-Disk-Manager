@@ -61,7 +61,7 @@ internal class MftScanEngine
         logConsole("[MFT] Enumerating file system entries via USN journal...");
 
         var entries = EnumerateMftEntries(volumeHandle, logConsole, ct);
-        logConsole($"[MFT] USN enumeration complete — {entries.Count:N0} entries found.");
+        logConsole($"[MFT] USN enumeration complete. {entries.Count:N0} entries found.");
         ct.ThrowIfCancellationRequested();
 
         // ── Step 3: resolve full paths for every entry ────────────────────────
@@ -74,7 +74,7 @@ internal class MftScanEngine
         logConsole($"[MFT] Building tree under: {rootPath}");
 
         var (nodeMap, rootNode) = BuildTree(entries, pathCache, rootPath);
-        logConsole($"[MFT] Tree built — {nodeMap.Count:N0} nodes in scan scope.");
+        logConsole($"[MFT] Tree built. {nodeMap.Count:N0} nodes in scan scope.");
         ct.ThrowIfCancellationRequested();
 
         // ── Step 5: populate file sizes via batched directory enumeration ──────
