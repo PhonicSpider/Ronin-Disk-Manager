@@ -24,6 +24,16 @@
                         IsEnabled="False"
                         Click="BackButton_Click"
                         ToolTip="Navigate up one level"/>
+                <CheckBox x:Name="AgeHeatmapToggle"
+                          DockPanel.Dock="Right"
+                          Content="Age heatmap"
+                          Foreground="#A8A8A8"
+                          FontSize="11"
+                          VerticalAlignment="Center"
+                          Margin="6,0,4,0"
+                          Checked="AgeHeatmapToggle_Changed"
+                          Unchecked="AgeHeatmapToggle_Changed"
+                          ToolTip="Color file tiles by age: green = recent, red = old."/>
                 <ScrollViewer HorizontalScrollBarVisibility="Auto"
                               VerticalScrollBarVisibility="Disabled"
                               Focusable="False">

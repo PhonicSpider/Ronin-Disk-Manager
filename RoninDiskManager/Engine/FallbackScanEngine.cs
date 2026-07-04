@@ -51,11 +51,12 @@ internal class FallbackScanEngine
                     {
                         node.Children.Add(new DiskNode
                         {
-                            Name        = fi.Name,
-                            FullPath    = fi.FullName,
-                            IsDirectory = false,
-                            SizeBytes   = fi.Length,
-                            Parent      = node
+                            Name         = fi.Name,
+                            FullPath     = fi.FullName,
+                            IsDirectory  = false,
+                            SizeBytes    = fi.Length,
+                            LastWriteUtc = SafeWriteTime(fi),
+                            Parent       = node
                         });
                         totalSize += fi.Length;
                     }
@@ -93,5 +94,10 @@ internal class FallbackScanEngine
 
         node.SizeBytes = totalSize;
         return node;
+    }
+
+    private static DateTime SafeWriteTime(FileInfo fi)
+    {
+        try { return fi.LastWriteTimeUtc; } catch { return default; }
     }
 }

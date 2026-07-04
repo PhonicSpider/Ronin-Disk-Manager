@@ -4,6 +4,7 @@ using Microsoft.Win32;
 using System.IO;
 using RoninDiskManager.Engine;
 using RoninDiskManager.Models;
+using RoninDiskManager.Services;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Text;
@@ -23,6 +24,8 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _scanPath = @"C:\";
     [ObservableProperty] private bool _isScanning;
     [ObservableProperty] private string _scanStatus = "Enter a path and click Scan.";
+    [ObservableProperty] private double _scanProgress;
+    [ObservableProperty] private bool _scanIndeterminate = true;
     [ObservableProperty] private ObservableCollection<DiskNodeViewModel> _treeRoots = [];
     [ObservableProperty] private DiskNodeViewModel? _selectedNode;
     [ObservableProperty] private string _consoleText = string.Empty;
@@ -55,13 +58,91 @@ public partial class MainViewModel : ObservableObject
 
     // ── Largest files (populated after each scan) ──────────────────────────────
     /// <summary>Number of biggest files surfaced in the Largest Files tab.</summary>
-    private const int LargestFilesCount = 200;
+    private static int LargestFilesCount => SettingsService.Current.LargestFilesCount;
     [ObservableProperty] private ObservableCollection<SearchResult> _largestFiles = [];
     [ObservableProperty] private SearchResult? _selectedLargestFile;
+
+    /// <summary>Free-space target (GB) used to mark cumulative rows in Largest Files.</summary>
+    [ObservableProperty] private double _freeSpaceTargetGb = SettingsService.Current.FreeSpaceTargetGb;
+
+    partial void OnFreeSpaceTargetGbChanged(double value)
+    {
+        SettingsService.Current.FreeSpaceTargetGb = value;
+        SettingsService.Save();
+        if (TreemapRoot != null) PopulateLargestFiles(TreemapRoot);
+    }
+
+    // ── Extension breakdown ─────────────────────────────────────────────────────
+    [ObservableProperty] private ObservableCollection<DiskAnalysis.ExtensionStat> _extensionStats = [];
+
+    // ── Empty folders ───────────────────────────────────────────────────────────
+    [ObservableProperty] private ObservableCollection<SearchResult> _emptyFolders = [];
+    [ObservableProperty] private SearchResult? _selectedEmptyFolder;
+
+    // ── Duplicates ──────────────────────────────────────────────────────────────
+    [ObservableProperty] private ObservableCollection<SearchResult> _duplicateFiles = [];
+    [ObservableProperty] private SearchResult? _selectedDuplicate;
+    [ObservableProperty] private bool _isFindingDuplicates;
+    [ObservableProperty] private string _duplicateStatus = "Scan a folder, then find duplicate files.";
+    private CancellationTokenSource? _dupCts;
+
+    // ── Age-based cleanup rules ─────────────────────────────────────────────────
+    [ObservableProperty] private string _cleanupFolder = @"C:\";
+    [ObservableProperty] private string _cleanupPattern = "*.log";
+    [ObservableProperty] private int _cleanupOlderThanDays = 30;
+    [ObservableProperty] private bool _cleanupRecurse = true;
+    [ObservableProperty] private bool _cleanupRecycle = true;
+    [ObservableProperty] private ObservableCollection<SearchResult> _cleanupResults = [];
+    [ObservableProperty] private string _cleanupStatus = "Set a folder, pattern, and age, then Preview.";
+    [ObservableProperty] private bool _isCleaning;
+    private CancellationTokenSource? _cleanupCts;
 
     // ── Unified input bar ─────────────────────────────────────────────────────
     [ObservableProperty] private string _inputQuery = @"C:\";
     [ObservableProperty] private bool _isShowingSearchResults;
+
+    // ── Pinned paths (persisted) ───────────────────────────────────────────────
+    [ObservableProperty] private ObservableCollection<string> _pinnedPaths = [];
+
+    public MainViewModel()
+    {
+        var s = SettingsService.Current;
+        foreach (var p in s.PinnedPaths)
+            PinnedPaths.Add(p);
+        CleanupFolder = ScanPath;
+    }
+
+    [RelayCommand]
+    private void PinCurrentPath()
+    {
+        var path = InputQuery?.Trim();
+        if (string.IsNullOrWhiteSpace(path)) return;
+        if (PinnedPaths.Any(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase))) return;
+        PinnedPaths.Add(path);
+        PersistPinnedPaths();
+    }
+
+    [RelayCommand]
+    private void UnpinPath(string? path)
+    {
+        if (path == null) return;
+        PinnedPaths.Remove(path);
+        PersistPinnedPaths();
+    }
+
+    [RelayCommand]
+    private async Task ScanPinned(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return;
+        InputQuery = path;
+        await ScanAsync();
+    }
+
+    private void PersistPinnedPaths()
+    {
+        SettingsService.Current.PinnedPaths = [.. PinnedPaths];
+        SettingsService.Save();
+    }
 
     /// <summary>True while either a scan or search is in progress — drives Cancel button.</summary>
     public bool IsOperationRunning => IsScanning || IsSearching;
@@ -115,6 +196,33 @@ public partial class MainViewModel : ObservableObject
       : DeleteToRecycleBin ? "▶   Send to Recycle Bin"
       : "▶   Delete Permanently";
 
+    /// <summary>
+    /// Live preview of exactly what the current action will run, so the user can
+    /// see the command before committing. Empty when nothing is selected.
+    /// </summary>
+    public string CommandPreview
+    {
+        get
+        {
+            if (SelectedNode == null) return string.Empty;
+            if (IsMoveMode) return BuildMoveCommand();
+            if (IsCopyMode) return BuildCopyCommand();
+            if (IsDeleteMode)
+                return DeleteToRecycleBin
+                    ? $"Send to Recycle Bin:  {SelectedNode.FullPath}"
+                    : BuildDeleteCommand();
+            return string.Empty;
+        }
+    }
+
+    // Recompute the command preview whenever any relevant property changes.
+    protected override void OnPropertyChanged(System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+        if (e.PropertyName is not (nameof(CommandPreview) or nameof(ConsoleText) or nameof(StatusBarText)))
+            base.OnPropertyChanged(new System.ComponentModel.PropertyChangedEventArgs(nameof(CommandPreview)));
+    }
+
     // ── Move flags ────────────────────────────────────────────────────────────
     // Destination is shared by both Move and Copy (only one mode is active).
     [ObservableProperty] private string _destination = string.Empty;
@@ -165,9 +273,15 @@ public partial class MainViewModel : ObservableObject
         SearchResults.Clear();
 
         IsScanning = true;
+        ScanIndeterminate = true;
+        ScanProgress = 0;
         OnPropertyChanged(nameof(IsOperationRunning));
         TreeRoots.Clear();
         LargestFiles.Clear();
+        ExtensionStats.Clear();
+        EmptyFolders.Clear();
+        DuplicateFiles.Clear();
+        DuplicateStatus = "Scan complete. Click Find Duplicates to scan for duplicate files.";
         SelectedNode = null;
 
         var progress = new Progress<string>(msg =>
@@ -179,9 +293,15 @@ public partial class MainViewModel : ObservableObject
         AppendConsole($"▶  Scanning: {ScanPath}");
         var sw = Stopwatch.StartNew();
 
+        var pct = new Progress<double>(v =>
+        {
+            ScanIndeterminate = false;
+            ScanProgress = v * 100;
+        });
+
         try
         {
-            var root = await _engine.ScanAsync(ScanPath, AppendConsole, progress, _scanCts.Token);
+            var root = await _engine.ScanAsync(ScanPath, AppendConsole, progress, _scanCts.Token, pct);
             sw.Stop();
 
             // Count files and dirs for status bar
@@ -190,6 +310,8 @@ public partial class MainViewModel : ObservableObject
             TreeRoots.Add(new DiskNodeViewModel(root, root.SizeBytes));
             TreemapRoot = root;
             PopulateLargestFiles(root);
+            PopulateExtensionStats(root);
+            PopulateEmptyFolders(root);
             ScanStatus = $"Done. {FormatBytes(root.SizeBytes)} in {sw.Elapsed.TotalSeconds:F1}s  ·  {_totalScannedFiles:N0} files  ·  {_totalScannedDirs:N0} dirs";
             AppendConsole($"✔  Scan complete in {sw.Elapsed.TotalSeconds:F1}s  {FormatBytes(root.SizeBytes)} total\n");
             _lastStatus = ScanStatus;
@@ -291,7 +413,7 @@ public partial class MainViewModel : ObservableObject
                 }
             }
 
-            await RunPowerShellAsync(BuildMoveCommand());
+            await RunPowerShellAsync(BuildMoveCommand(), auditAction: "MOVE");
         }
         else if (IsCopyMode)
         {
@@ -301,7 +423,7 @@ public partial class MainViewModel : ObservableObject
                 return;
             }
 
-            await RunPowerShellAsync(BuildCopyCommand());
+            await RunPowerShellAsync(BuildCopyCommand(), auditAction: "COPY");
         }
         else
         {
@@ -338,7 +460,7 @@ public partial class MainViewModel : ObservableObject
         if (recycle)
             await RecycleSelectedAsync();
         else
-            await RunPowerShellAsync(BuildDeleteCommand());
+            await RunPowerShellAsync(BuildDeleteCommand(), auditAction: "DELETE");
     }
 
     private async Task RecycleSelectedAsync()
@@ -353,6 +475,7 @@ public partial class MainViewModel : ObservableObject
         AppendConsole(ok
             ? "\n✔  Sent to Recycle Bin.\n"
             : $"\n✖  {error}\n");
+        OperationLog.Record("RECYCLE", path, ok ? "OK" : error);
     }
 
     private bool CanExecuteAction() => SelectedNode != null;
@@ -366,6 +489,10 @@ public partial class MainViewModel : ObservableObject
     partial void OnSelectedSearchResultChanged(SearchResult? value) => SelectFromResult(value);
 
     partial void OnSelectedLargestFileChanged(SearchResult? value) => SelectFromResult(value);
+
+    partial void OnSelectedEmptyFolderChanged(SearchResult? value) => SelectFromResult(value);
+
+    partial void OnSelectedDuplicateChanged(SearchResult? value) => SelectFromResult(value);
 
     /// <summary>Bridges a grid-row selection (search or largest-files) into the action panel.</summary>
     private void SelectFromResult(SearchResult? value)
@@ -499,7 +626,7 @@ public partial class MainViewModel : ObservableObject
 
     // ── Execution ─────────────────────────────────────────────────────────────
 
-    private async Task RunPowerShellAsync(string command, string? displayName = null)
+    private async Task RunPowerShellAsync(string command, string? displayName = null, string? auditAction = null)
     {
         AppendConsole($"> {displayName ?? command}\n");
 
@@ -527,10 +654,14 @@ public partial class MainViewModel : ObservableObject
             AppendConsole(proc.ExitCode == 0
                 ? "\n✔  Operation completed successfully.\n"
                 : $"\n✖  Exited with code {proc.ExitCode}.\n");
+            if (auditAction != null)
+                OperationLog.Record(auditAction, command, proc.ExitCode == 0 ? "OK" : $"exit {proc.ExitCode}");
         }
         catch (Exception ex)
         {
             AppendConsole($"\n✖  Failed to start PowerShell: {ex.Message}\n");
+            if (auditAction != null)
+                OperationLog.Record(auditAction, command, $"error: {ex.Message}");
         }
     }
 
@@ -554,6 +685,33 @@ public partial class MainViewModel : ObservableObject
         var path = SelectedNode?.FullPath;
         if (!string.IsNullOrEmpty(path))
             Clipboard.SetText(path);
+    }
+
+    [RelayCommand]
+    private void OpenTerminal()
+    {
+        var path = SelectedNode?.FullPath;
+        if (string.IsNullOrEmpty(path)) return;
+        string dir = SelectedNode!.IsDirectory ? path : (Path.GetDirectoryName(path) ?? path);
+        try
+        {
+            // Prefer Windows Terminal; fall back to PowerShell if it isn't installed.
+            Process.Start(new ProcessStartInfo("wt.exe", $"-d \"{dir}\"") { UseShellExecute = true });
+        }
+        catch
+        {
+            try { Process.Start(new ProcessStartInfo("powershell.exe") { WorkingDirectory = dir, UseShellExecute = true }); }
+            catch (Exception ex) { AppendConsole($"✖  Could not open a terminal: {ex.Message}\n"); }
+        }
+    }
+
+    /// <summary>Delete-key shortcut: switch to Delete mode and run it (with confirmation).</summary>
+    [RelayCommand]
+    private async Task DeleteSelected()
+    {
+        if (SelectedNode == null) return;
+        SetDeleteMode();
+        await ExecuteDeleteAsync();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -594,13 +752,18 @@ public partial class MainViewModel : ObservableObject
             foreach (var c in n.Children) stack.Push(c);
         }
 
-        var biggest = top.OrderByDescending(n => n.SizeBytes).Take(LargestFilesCount);
+        var biggest = top.OrderByDescending(n => n.SizeBytes).Take(LargestFilesCount).ToList();
+
+        long targetBytes = (long)(FreeSpaceTargetGb * 1024 * 1024 * 1024);
+        long cumulative = 0;
 
         LargestFiles.Clear();
         foreach (var n in biggest)
         {
             DateTime modified = DateTime.MinValue;
             try { modified = new FileInfo(n.FullPath).LastWriteTime; } catch { /* metadata unavailable */ }
+
+            cumulative += n.SizeBytes;
 
             var ext = Path.GetExtension(n.Name);
             LargestFiles.Add(new SearchResult
@@ -610,10 +773,207 @@ public partial class MainViewModel : ObservableObject
                 IsDirectory  = false,
                 SizeBytes    = n.SizeBytes,
                 DateModified = modified,
-                FileType     = string.IsNullOrEmpty(ext) ? "File" : ext.TrimStart('.').ToUpperInvariant() + " File"
+                FileType     = string.IsNullOrEmpty(ext) ? "File" : ext.TrimStart('.').ToUpperInvariant() + " File",
+                CumulativeBytes = cumulative,
+                // Rows up to and including the one that first reaches the target are "within target".
+                WithinFreeSpaceTarget = targetBytes > 0 && cumulative - n.SizeBytes < targetBytes
             });
         }
     }
+
+    private void PopulateExtensionStats(DiskNode root)
+    {
+        ExtensionStats.Clear();
+        foreach (var s in DiskAnalysis.ExtensionBreakdown(root))
+            ExtensionStats.Add(s);
+    }
+
+    private void PopulateEmptyFolders(DiskNode root)
+    {
+        EmptyFolders.Clear();
+        foreach (var n in DiskAnalysis.FindEmptyFolders(root))
+            EmptyFolders.Add(MakeResult(n));
+    }
+
+    /// <summary>Builds a display row from a scan node (used for empty folders and duplicates).</summary>
+    private static SearchResult MakeResult(DiskNode n)
+    {
+        var ext = Path.GetExtension(n.Name);
+        return new SearchResult
+        {
+            Name        = n.Name,
+            FullPath    = n.FullPath,
+            IsDirectory = n.IsDirectory,
+            SizeBytes   = n.SizeBytes,
+            FileType    = n.IsDirectory
+                ? "File Folder"
+                : (string.IsNullOrEmpty(ext) ? "File" : ext.TrimStart('.').ToUpperInvariant() + " File")
+        };
+    }
+
+    // ── Duplicate finder ────────────────────────────────────────────────────────
+
+    [RelayCommand]
+    private async Task FindDuplicates()
+    {
+        var root = TreemapRoot;
+        if (root == null) { DuplicateStatus = "Scan a folder first."; return; }
+        if (IsFindingDuplicates) return;
+
+        _dupCts?.Cancel();
+        _dupCts = new CancellationTokenSource();
+
+        IsFindingDuplicates = true;
+        DuplicateFiles.Clear();
+        DuplicateStatus = "Scanning for duplicate files...";
+        var progress = new Progress<string>(m => DuplicateStatus = m);
+
+        try
+        {
+            var groups = await DuplicateFinder.FindDuplicatesAsync(root, progress, _dupCts.Token);
+            long wasted = groups.Sum(g => g.WastedBytes);
+            int fileCount = 0;
+            foreach (var g in groups)
+                foreach (var f in g.Files)
+                {
+                    DuplicateFiles.Add(MakeResult(f));
+                    fileCount++;
+                }
+
+            DuplicateStatus = groups.Count == 0
+                ? "No duplicate files found."
+                : $"{groups.Count:N0} duplicate set{(groups.Count == 1 ? "" : "s")}  ·  {fileCount:N0} files  ·  {FileSystemHelpers.FormatBytes(wasted)} reclaimable";
+        }
+        catch (OperationCanceledException)
+        {
+            DuplicateStatus = "Duplicate scan cancelled.";
+        }
+        catch (Exception ex)
+        {
+            DuplicateStatus = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            IsFindingDuplicates = false;
+        }
+    }
+
+    [RelayCommand]
+    private void CancelDuplicates() => _dupCts?.Cancel();
+
+    // ── Age-based cleanup rules ─────────────────────────────────────────────────
+
+    [RelayCommand]
+    private void BrowseCleanupFolder()
+    {
+        var dlg = new OpenFolderDialog();
+        if (dlg.ShowDialog() == true)
+            CleanupFolder = dlg.FolderName;
+    }
+
+    /// <summary>Dry run: list the files the rule would remove, without touching anything.</summary>
+    [RelayCommand]
+    private async Task PreviewCleanup()
+    {
+        if (IsCleaning) return;
+        if (string.IsNullOrWhiteSpace(CleanupFolder) || !Directory.Exists(CleanupFolder))
+        {
+            CleanupStatus = "Folder not found.";
+            return;
+        }
+
+        _cleanupCts?.Cancel();
+        _cleanupCts = new CancellationTokenSource();
+
+        IsCleaning = true;
+        CleanupResults.Clear();
+        CleanupStatus = "Scanning...";
+        var progress = new Progress<string>(m => CleanupStatus = m);
+
+        try
+        {
+            var matches = await CleanupScanner.FindAsync(
+                CleanupFolder, CleanupPattern, CleanupOlderThanDays, CleanupRecurse, progress, _cleanupCts.Token);
+
+            long total = matches.Sum(m => m.SizeBytes);
+            foreach (var m in matches) CleanupResults.Add(m);
+
+            CleanupStatus = matches.Count == 0
+                ? "No matching files. Nothing to clean."
+                : $"{matches.Count:N0} file{(matches.Count == 1 ? "" : "s")}  ·  {FileSystemHelpers.FormatBytes(total)}  ·  review, then Apply.";
+        }
+        catch (OperationCanceledException) { CleanupStatus = "Cleanup preview cancelled."; }
+        catch (Exception ex)               { CleanupStatus = $"Error: {ex.Message}"; }
+        finally { IsCleaning = false; }
+    }
+
+    /// <summary>Acts on exactly the previewed files (recycle by default), after confirmation.</summary>
+    [RelayCommand]
+    private async Task ApplyCleanup()
+    {
+        if (IsCleaning) return;
+        if (CleanupResults.Count == 0)
+        {
+            CleanupStatus = "Nothing to clean. Run Preview first.";
+            return;
+        }
+
+        var files = CleanupResults.ToList();
+        long total = files.Sum(f => f.SizeBytes);
+        bool recycle = CleanupRecycle;
+
+        var confirm = MessageBox.Show(
+            (recycle
+                ? $"Send {files.Count:N0} file(s) ({FileSystemHelpers.FormatBytes(total)}) to the Recycle Bin?\n\nThey can be restored later."
+                : $"Permanently delete {files.Count:N0} file(s) ({FileSystemHelpers.FormatBytes(total)})?\n\nThis cannot be undone.")
+            + $"\n\nRule: {CleanupPattern} older than {CleanupOlderThanDays} days in\n{CleanupFolder}",
+            recycle ? "Confirm Cleanup (Recycle)" : "Confirm Cleanup (Permanent)",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        if (confirm != MessageBoxResult.Yes) return;
+
+        IsCleaning = true;
+        try
+        {
+            if (recycle)
+            {
+                var progress = new Progress<string>(m => CleanupStatus = m);
+                int ok = await Task.Run(() =>
+                {
+                    int success = 0;
+                    for (int i = 0; i < files.Count; i++)
+                    {
+                        if (RecycleBin.Send(files[i].FullPath, out var err))
+                        {
+                            success++;
+                            OperationLog.Record("CLEANUP-RECYCLE", files[i].FullPath, "OK");
+                        }
+                        else
+                        {
+                            OperationLog.Record("CLEANUP-RECYCLE", files[i].FullPath, err);
+                        }
+                        ((IProgress<string>)progress).Report($"Recycling {i + 1:N0} / {files.Count:N0}...");
+                    }
+                    return success;
+                });
+                AppendConsole($"✔  Cleanup: sent {ok:N0} / {files.Count:N0} file(s) to the Recycle Bin.\n");
+                CleanupStatus = $"Done. {ok:N0} / {files.Count:N0} file(s) recycled.";
+            }
+            else
+            {
+                var quoted = string.Join(",", files.Select(f => $"'{ShellCommandBuilder.EscapePs(f.FullPath)}'"));
+                await RunPowerShellAsync($"Remove-Item -LiteralPath {quoted} -Force", "Cleanup: permanent delete", "CLEANUP-DELETE");
+                CleanupStatus = $"Done. Deleted {files.Count:N0} file(s).";
+            }
+
+            CleanupResults.Clear();
+        }
+        finally { IsCleaning = false; }
+    }
+
+    [RelayCommand]
+    private void CancelCleanup() => _cleanupCts?.Cancel();
 
     // ── System Tools ──────────────────────────────────────────────────────────
 

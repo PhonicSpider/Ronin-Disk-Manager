@@ -6,6 +6,8 @@ public class DiskNode
     public string FullPath { get; init; } = string.Empty;
     public bool IsDirectory { get; init; }
     public long SizeBytes { get; set; }
+    /// <summary>Last-write time (UTC) for files; default for directories/unknown.</summary>
+    public DateTime LastWriteUtc { get; set; }
     public DiskNode? Parent { get; set; }
     public List<DiskNode> Children { get; } = [];
 }

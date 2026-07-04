@@ -41,13 +41,9 @@ public partial class DiskNodeViewModel : ObservableObject
     // ── kept for any legacy bindings ──────────────────────────────────
     public string SizeDisplay => SizeBytes <= 0 ? string.Empty : $"  [{SizeText} / {PctText}]";
 
-    public string SizeText => _node.SizeBytes switch
-    {
-        <= 0             => string.Empty,
-        >= 1_073_741_824 => $"{_node.SizeBytes / 1_073_741_824.0:F1} GB",
-        >= 1_048_576     => $"{_node.SizeBytes / 1_048_576.0:F0} MB",
-        _                => $"{_node.SizeBytes / 1024.0:F0} KB"
-    };
+    public string SizeText => _node.SizeBytes <= 0
+        ? string.Empty
+        : RoninDiskManager.Engine.FileSystemHelpers.FormatBytes(_node.SizeBytes);
 
     public string PctText
     {

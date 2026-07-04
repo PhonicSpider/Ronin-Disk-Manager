@@ -47,6 +47,15 @@ public partial class TreemapControl : UserControl
     private DiskNode?            _displayRoot;
     private readonly Stack<DiskNode> _navStack = new();
 
+    /// <summary>When true, file tiles are colored by age instead of the palette.</summary>
+    private bool _colorByAge;
+
+    private void AgeHeatmapToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        _colorByAge = AgeHeatmapToggle.IsChecked == true;
+        Render();
+    }
+
     // ── Ronin colour palette (10 distinct dark hues) ──────────────────────
 
     private static readonly Color[] Palette =
@@ -279,11 +288,16 @@ public partial class TreemapControl : UserControl
 
         bool canDrill = node.IsDirectory && node.Children.Count > 0;
 
+        // In age-heatmap mode, recolor file tiles by their last-write age.
+        Color fill = (_colorByAge && !node.IsDirectory && node.LastWriteUtc != default)
+            ? AgeColor(node.LastWriteUtc)
+            : baseColor;
+
         var border = new Border
         {
             Width               = Math.Max(0, rect.Width  - 1),
             Height              = Math.Max(0, rect.Height - 1),
-            Background          = new SolidColorBrush(baseColor),
+            Background          = new SolidColorBrush(fill),
             BorderBrush         = new SolidColorBrush(Color.FromRgb(0x08, 0x08, 0x08)),
             BorderThickness     = new Thickness(1),
             Cursor              = canDrill ? Cursors.Hand : Cursors.Arrow,
@@ -648,6 +662,30 @@ public partial class TreemapControl : UserControl
         (byte)Math.Max(0, c.R - amount),
         (byte)Math.Max(0, c.G - amount),
         (byte)Math.Max(0, c.B - amount));
+
+    /// <summary>
+    /// Maps file age to a heat color: recent files are green, aging files pass
+    /// through amber, and files two years or older are red. Scaled over ~2 years.
+    /// </summary>
+    private static Color AgeColor(DateTime lastWriteUtc)
+    {
+        double days = (DateTime.UtcNow - lastWriteUtc).TotalDays;
+        double t = Math.Clamp(days / 730.0, 0.0, 1.0); // 0 = new, 1 = >=2 years
+
+        // Green (fresh) -> Amber (mid) -> Red (old)
+        var green = Color.FromRgb(0x2E, 0x7D, 0x32);
+        var amber = Color.FromRgb(0xB0, 0x80, 0x10);
+        var red   = Color.FromRgb(0x8B, 0x1A, 0x1A);
+
+        return t < 0.5
+            ? Lerp(green, amber, t / 0.5)
+            : Lerp(amber, red, (t - 0.5) / 0.5);
+    }
+
+    private static Color Lerp(Color a, Color b, double t) => Color.FromRgb(
+        (byte)(a.R + (b.R - a.R) * t),
+        (byte)(a.G + (b.G - a.G) * t),
+        (byte)(a.B + (b.B - a.B) * t));
 
     // ── Helpers ────────────────────────────────────────────────────────────
 

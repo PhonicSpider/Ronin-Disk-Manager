@@ -12,7 +12,10 @@
         TitleCharacterCasing="Normal"
         WindowStartupLocation="CenterScreen"
         GlowBrush="{DynamicResource MahApps.Brushes.Accent}"
-        BorderThickness="1">
+        BorderThickness="1"
+        AllowDrop="True"
+        DragOver="Window_DragOver"
+        Drop="Window_Drop">
 
     <mah:MetroWindow.Resources>
         <conv:NullToVisibilityConverter          x:Key="NullToVis"/>
@@ -138,6 +141,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <DockPanel Grid.Row="0" LastChildFill="True">
@@ -147,6 +151,10 @@
                             Content="▶   Scan"
                             Width="90" Margin="6,0,0,0"
                             Style="{DynamicResource MahApps.Styles.Button.Square.Accent}"/>
+                    <Button DockPanel.Dock="Right"
+                            Command="{Binding PinCurrentPathCommand}"
+                            Content="📌" Width="34" Margin="4,0,0,0"
+                            ToolTip="Pin the current path for one-click rescans"/>
                     <Button DockPanel.Dock="Right"
                             Command="{Binding SearchAllDrivesCommand}"
                             IsEnabled="{Binding IsOperationRunning, Converter={StaticResource InvBool}}"
@@ -166,7 +174,8 @@
                                Text="📂" FontSize="15"
                                Foreground="{StaticResource Ronin.Orange}"
                                VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <TextBox Text="{Binding InputQuery, UpdateSourceTrigger=PropertyChanged}"
+                    <TextBox x:Name="InputBox"
+                             Text="{Binding InputQuery, UpdateSourceTrigger=PropertyChanged}"
                              FontSize="13" VerticalContentAlignment="Center"
                              Background="#141414" Foreground="#D0D0D0"
                              BorderBrush="{StaticResource Ronin.Border}"
@@ -181,6 +190,42 @@
                            Text="{Binding StatusText}"
                            FontSize="11" Margin="0,4,0,0"
                            Foreground="{StaticResource Ronin.CyanDim}"/>
+
+                <!-- Pinned paths -->
+                <ItemsControl Grid.Row="2"
+                              ItemsSource="{Binding PinnedPaths}"
+                              Margin="0,6,0,0">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="#141414"
+                                    BorderBrush="{StaticResource Ronin.Border}"
+                                    BorderThickness="1" CornerRadius="3"
+                                    Margin="0,0,6,4" Padding="2,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="{Binding}"
+                                            Command="{Binding DataContext.ScanPinnedCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}"
+                                            Background="Transparent" BorderThickness="0"
+                                            Foreground="{StaticResource Ronin.CyanBright}"
+                                            FontSize="11" Padding="6,2" Cursor="Hand"
+                                            ToolTip="Scan this pinned path"/>
+                                    <Button Content="✖"
+                                            Command="{Binding DataContext.UnpinPathCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}"
+                                            Background="Transparent" BorderThickness="0"
+                                            Foreground="{StaticResource Ronin.TextDim}"
+                                            FontSize="10" Padding="4,2" Cursor="Hand"
+                                            ToolTip="Unpin"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
             </Grid>
         </Border>
 
@@ -217,6 +262,10 @@
                                   Visibility="{Binding IsShowingSearchResults, Converter={StaticResource InvBoolToVis}}"
                                   Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
 
+                            <TreeView.InputBindings>
+                                <KeyBinding Key="Delete" Command="{Binding DeleteSelectedCommand}"/>
+                            </TreeView.InputBindings>
+
                             <TreeView.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <VirtualizingStackPanel/>
@@ -236,6 +285,8 @@
                                     <MenuItem Header="📋  Copy Path"
                                               Command="{Binding CopyPathCommand}"
                                               InputGestureText="Ctrl+Shift+C"/>
+                                    <MenuItem Header="💻  Open Terminal Here"
+                                              Command="{Binding OpenTerminalCommand}"/>
                                     <Separator/>
                                     <MenuItem Header="📦  Move…"
                                               Command="{Binding SetMoveModeCommand}"/>
@@ -330,6 +381,9 @@
                                   SelectionMode="Single"
                                   Visibility="{Binding IsShowingSearchResults, Converter={StaticResource BoolToVis}}"
                                   Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
+                            <DataGrid.InputBindings>
+                                <KeyBinding Key="Delete" Command="{Binding DeleteSelectedCommand}"/>
+                            </DataGrid.InputBindings>
                             <DataGrid.ContextMenu>
                                 <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
                                     <MenuItem Header="🗂  Open in Explorer"
@@ -366,9 +420,104 @@
 
                 <!-- ══════════════════════════════ TAB: LARGEST FILES -->
                 <TabItem Header="  Largest Files  ">
-                    <DataGrid x:Name="LargestGrid"
-                              ItemsSource="{Binding LargestFiles}"
-                              SelectedItem="{Binding SelectedLargestFile}"
+                    <Grid Background="#080808">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <DockPanel Grid.Row="0" Margin="8,6" LastChildFill="False">
+                            <TextBlock DockPanel.Dock="Left" Text="Free-space target (GB):"
+                                       VerticalAlignment="Center" FontSize="11"
+                                       Foreground="{StaticResource Ronin.TextMid}" Margin="0,0,6,0"/>
+                            <TextBox DockPanel.Dock="Left" Width="70"
+                                     Text="{Binding FreeSpaceTargetGb, UpdateSourceTrigger=PropertyChanged}"
+                                     Background="#141414" Foreground="#D0D0D0"
+                                     BorderBrush="{StaticResource Ronin.Border}"
+                                     VerticalContentAlignment="Center"
+                                     ToolTip="Highlighted rows are the biggest files whose combined size reaches this target."/>
+                            <TextBlock DockPanel.Dock="Left" Text="Highlighted rows together reach the target."
+                                       VerticalAlignment="Center" FontSize="10"
+                                       Foreground="{StaticResource Ronin.TextDim}" Margin="10,0,0,0"/>
+                        </DockPanel>
+
+                        <DataGrid Grid.Row="1" x:Name="LargestGrid"
+                                  ItemsSource="{Binding LargestFiles}"
+                                  SelectedItem="{Binding SelectedLargestFile}"
+                                  IsReadOnly="True"
+                                  AutoGenerateColumns="False"
+                                  Background="#080808"
+                                  Foreground="#C8C8C8"
+                                  BorderThickness="0"
+                                  GridLinesVisibility="Horizontal"
+                                  HorizontalGridLinesBrush="{StaticResource Ronin.BorderSubtle}"
+                                  ColumnHeaderHeight="26"
+                                  FontSize="12"
+                                  SelectionMode="Single"
+                                  Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
+                            <DataGrid.RowStyle>
+                                <Style TargetType="DataGridRow">
+                                    <Setter Property="Background" Value="#080808"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding WithinFreeSpaceTarget}" Value="True">
+                                            <Setter Property="Background" Value="#0F2018"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGrid.RowStyle>
+                            <DataGrid.InputBindings>
+                                <KeyBinding Key="Delete" Command="{Binding DeleteSelectedCommand}"/>
+                            </DataGrid.InputBindings>
+                            <DataGrid.ContextMenu>
+                                <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
+                                    <MenuItem Header="🗂  Open in Explorer" Command="{Binding OpenInExplorerCommand}"/>
+                                    <MenuItem Header="📋  Copy Path" Command="{Binding CopyPathCommand}"/>
+                                    <MenuItem Header="💻  Open Terminal Here" Command="{Binding OpenTerminalCommand}"/>
+                                    <Separator/>
+                                    <MenuItem Header="📦  Move…" Command="{Binding SetMoveModeCommand}"/>
+                                    <MenuItem Header="📑  Copy…" Command="{Binding SetCopyModeCommand}"/>
+                                    <MenuItem Header="🗑  Delete…" Command="{Binding SetDeleteModeCommand}"/>
+                                </ContextMenu>
+                            </DataGrid.ContextMenu>
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Name"       Binding="{Binding Name}"        Width="*"/>
+                                <DataGridTextColumn Header="Size"       Binding="{Binding SizeDisplay}"  Width="75"/>
+                                <DataGridTextColumn Header="Cumulative" Binding="{Binding CumulativeDisplay}" Width="85"/>
+                                <DataGridTextColumn Header="Modified"   Binding="{Binding DateModified, StringFormat='{}{0:yyyy-MM-dd}'}" Width="90"/>
+                                <DataGridTextColumn Header="Path"       Binding="{Binding FullPath}"     Width="2*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </TabItem>
+
+                <!-- ══════════════════════════════════ TAB: EXTENSIONS -->
+                <TabItem Header="  Extensions  ">
+                    <DataGrid ItemsSource="{Binding ExtensionStats}"
+                              IsReadOnly="True"
+                              AutoGenerateColumns="False"
+                              Background="#080808"
+                              Foreground="#C8C8C8"
+                              BorderThickness="0"
+                              GridLinesVisibility="Horizontal"
+                              HorizontalGridLinesBrush="{StaticResource Ronin.BorderSubtle}"
+                              RowBackground="#080808"
+                              AlternatingRowBackground="#0D0D0D"
+                              ColumnHeaderHeight="26"
+                              FontSize="12"
+                              SelectionMode="Single">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Extension"  Binding="{Binding Extension}"   Width="*"/>
+                            <DataGridTextColumn Header="Files"      Binding="{Binding FileCount}"   Width="100"/>
+                            <DataGridTextColumn Header="Total Size" Binding="{Binding SizeDisplay}" Width="120"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </TabItem>
+
+                <!-- ══════════════════════════════ TAB: EMPTY FOLDERS -->
+                <TabItem Header="  Empty Folders  ">
+                    <DataGrid x:Name="EmptyGrid"
+                              ItemsSource="{Binding EmptyFolders}"
+                              SelectedItem="{Binding SelectedEmptyFolder}"
                               IsReadOnly="True"
                               AutoGenerateColumns="False"
                               Background="#080808"
@@ -382,28 +531,84 @@
                               FontSize="12"
                               SelectionMode="Single"
                               Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
+                        <DataGrid.InputBindings>
+                            <KeyBinding Key="Delete" Command="{Binding DeleteSelectedCommand}"/>
+                        </DataGrid.InputBindings>
                         <DataGrid.ContextMenu>
                             <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
-                                <MenuItem Header="🗂  Open in Explorer"
-                                          Command="{Binding OpenInExplorerCommand}"/>
-                                <MenuItem Header="📋  Copy Path"
-                                          Command="{Binding CopyPathCommand}"/>
+                                <MenuItem Header="🗂  Open in Explorer" Command="{Binding OpenInExplorerCommand}"/>
+                                <MenuItem Header="📋  Copy Path" Command="{Binding CopyPathCommand}"/>
                                 <Separator/>
-                                <MenuItem Header="📦  Move…"
-                                          Command="{Binding SetMoveModeCommand}"/>
-                                <MenuItem Header="📑  Copy…"
-                                          Command="{Binding SetCopyModeCommand}"/>
-                                <MenuItem Header="🗑  Delete…"
-                                          Command="{Binding SetDeleteModeCommand}"/>
+                                <MenuItem Header="🗑  Delete…" Command="{Binding SetDeleteModeCommand}"/>
                             </ContextMenu>
                         </DataGrid.ContextMenu>
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Name"     Binding="{Binding Name}"        Width="*"/>
-                            <DataGridTextColumn Header="Size"     Binding="{Binding SizeDisplay}"  Width="80"/>
-                            <DataGridTextColumn Header="Modified" Binding="{Binding DateModified, StringFormat='{}{0:yyyy-MM-dd}'}" Width="95"/>
-                            <DataGridTextColumn Header="Path"     Binding="{Binding FullPath}"     Width="2*"/>
+                            <DataGridTextColumn Header="Folder" Binding="{Binding Name}"     Width="*"/>
+                            <DataGridTextColumn Header="Path"   Binding="{Binding FullPath}" Width="2*"/>
                         </DataGrid.Columns>
                     </DataGrid>
+                </TabItem>
+
+                <!-- ══════════════════════════════════ TAB: DUPLICATES -->
+                <TabItem Header="  Duplicates  ">
+                    <Grid Background="#080808">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <DockPanel Grid.Row="0" Margin="8,6" LastChildFill="True">
+                            <Button DockPanel.Dock="Left"
+                                    Content="🔍  Find Duplicates"
+                                    Command="{Binding FindDuplicatesCommand}"
+                                    IsEnabled="{Binding IsFindingDuplicates, Converter={StaticResource InvBool}}"
+                                    FontSize="11" Height="26" Padding="8,0"/>
+                            <Button DockPanel.Dock="Left"
+                                    Content="✖"
+                                    Command="{Binding CancelDuplicatesCommand}"
+                                    IsEnabled="{Binding IsFindingDuplicates}"
+                                    Width="30" Height="26" Margin="6,0,0,0"
+                                    ToolTip="Cancel duplicate scan"/>
+                            <TextBlock Text="{Binding DuplicateStatus}"
+                                       VerticalAlignment="Center" FontSize="11"
+                                       Foreground="{StaticResource Ronin.CyanDim}"
+                                       Margin="10,0,0,0" TextTrimming="CharacterEllipsis"/>
+                        </DockPanel>
+
+                        <DataGrid Grid.Row="1" x:Name="DupGrid"
+                                  ItemsSource="{Binding DuplicateFiles}"
+                                  SelectedItem="{Binding SelectedDuplicate}"
+                                  IsReadOnly="True"
+                                  AutoGenerateColumns="False"
+                                  Background="#080808"
+                                  Foreground="#C8C8C8"
+                                  BorderThickness="0"
+                                  GridLinesVisibility="Horizontal"
+                                  HorizontalGridLinesBrush="{StaticResource Ronin.BorderSubtle}"
+                                  RowBackground="#080808"
+                                  AlternatingRowBackground="#0D0D0D"
+                                  ColumnHeaderHeight="26"
+                                  FontSize="12"
+                                  SelectionMode="Single"
+                                  Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
+                            <DataGrid.InputBindings>
+                                <KeyBinding Key="Delete" Command="{Binding DeleteSelectedCommand}"/>
+                            </DataGrid.InputBindings>
+                            <DataGrid.ContextMenu>
+                                <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
+                                    <MenuItem Header="🗂  Open in Explorer" Command="{Binding OpenInExplorerCommand}"/>
+                                    <MenuItem Header="📋  Copy Path" Command="{Binding CopyPathCommand}"/>
+                                    <Separator/>
+                                    <MenuItem Header="🗑  Delete…" Command="{Binding SetDeleteModeCommand}"/>
+                                </ContextMenu>
+                            </DataGrid.ContextMenu>
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Name" Binding="{Binding Name}"       Width="*"/>
+                                <DataGridTextColumn Header="Size" Binding="{Binding SizeDisplay}" Width="80"/>
+                                <DataGridTextColumn Header="Path" Binding="{Binding FullPath}"    Width="2*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
                 </TabItem>
 
             </TabControl>
@@ -492,6 +697,12 @@
                                             FontSize="11" Height="26" Padding="8,0"
                                             Margin="6,0,0,0"
                                             ToolTip="Copy full path to clipboard (Ctrl+Shift+C)"/>
+                                    <Button DockPanel.Dock="Left"
+                                            Content="💻  Terminal"
+                                            Command="{Binding OpenTerminalCommand}"
+                                            FontSize="11" Height="26" Padding="8,0"
+                                            Margin="6,0,0,0"
+                                            ToolTip="Open a terminal at this location"/>
                                 </DockPanel>
 
                                 <Separator Margin="0,12,0,0"
@@ -697,6 +908,23 @@
                                     </StackPanel>
                                     <!-- end permanent-delete options -->
                                 </StackPanel>
+
+                                <!-- Command preview -->
+                                <TextBlock Text="COMMAND PREVIEW" Style="{StaticResource SectionLabel}" Margin="0,14,0,5"/>
+                                <Border Background="#060606"
+                                        BorderBrush="{StaticResource Ronin.BorderSubtle}"
+                                        BorderThickness="1" CornerRadius="3"
+                                        Padding="8,6">
+                                    <TextBox Text="{Binding CommandPreview, Mode=OneWay}"
+                                             IsReadOnly="True"
+                                             Background="Transparent"
+                                             Foreground="{StaticResource Ronin.Cyan}"
+                                             BorderThickness="0"
+                                             FontFamily="Consolas" FontSize="11"
+                                             TextWrapping="Wrap"
+                                             VerticalScrollBarVisibility="Auto"
+                                             MaxHeight="90"/>
+                                </Border>
 
                                 <!-- Execute button -->
                                 <Button Content="{Binding ExecuteButtonText}"
@@ -950,6 +1178,111 @@
                     </ScrollViewer>
                 </TabItem>
 
+                <!-- ═══════════════════════════════════════ TAB: CLEANUP -->
+                <TabItem Header="Cleanup">
+                    <Grid Background="{StaticResource Ronin.PanelBg}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Grid.Row="0" Margin="12,10,12,6">
+                            <TextBlock FontSize="10" TextWrapping="Wrap"
+                                       Foreground="{StaticResource Ronin.TextMid}" Margin="0,0,0,8"
+                                       Text="Remove old files by rule (e.g. logs older than 30 days). Preview first, then Apply. Deletes go to the Recycle Bin by default."/>
+
+                            <TextBlock Text="FOLDER" Style="{StaticResource SectionLabel}"/>
+                            <DockPanel LastChildFill="True">
+                                <Button DockPanel.Dock="Right" Content="…" Width="34" Margin="4,0,0,0"
+                                        Command="{Binding BrowseCleanupFolderCommand}"
+                                        ToolTip="Browse for the folder to clean"/>
+                                <TextBox Text="{Binding CleanupFolder, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="#141414" Foreground="#D0D0D0"
+                                         BorderBrush="{StaticResource Ronin.Border}"/>
+                            </DockPanel>
+
+                            <Grid Margin="0,4,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="PATTERN" Style="{StaticResource SectionLabel}"/>
+                                    <TextBox Text="{Binding CleanupPattern, UpdateSourceTrigger=PropertyChanged}"
+                                             mah:TextBoxHelper.Watermark="e.g. *.log"
+                                             Background="#141414" Foreground="#D0D0D0"
+                                             BorderBrush="{StaticResource Ronin.Border}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="OLDER THAN (DAYS)" Style="{StaticResource SectionLabel}"/>
+                                    <TextBox Width="80"
+                                             Text="{Binding CleanupOlderThanDays, UpdateSourceTrigger=PropertyChanged}"
+                                             Background="#141414" Foreground="#D0D0D0"
+                                             BorderBrush="{StaticResource Ronin.Border}"
+                                             HorizontalAlignment="Left"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <CheckBox Content="Include subfolders (recurse)"
+                                      IsChecked="{Binding CleanupRecurse}"
+                                      Style="{StaticResource FlagCheck}" Margin="0,8,0,0"/>
+                            <CheckBox Content="Send to Recycle Bin (recommended)"
+                                      IsChecked="{Binding CleanupRecycle}"
+                                      Style="{StaticResource FlagCheck}"
+                                      ToolTip="Untick to delete matched files permanently."/>
+
+                            <DockPanel Margin="0,8,0,0" LastChildFill="True">
+                                <Button DockPanel.Dock="Left" Content="🔍  Preview"
+                                        Command="{Binding PreviewCleanupCommand}"
+                                        IsEnabled="{Binding IsCleaning, Converter={StaticResource InvBool}}"
+                                        Height="28" FontSize="11" Padding="10,0"/>
+                                <Button DockPanel.Dock="Left" Content="✖"
+                                        Command="{Binding CancelCleanupCommand}"
+                                        IsEnabled="{Binding IsCleaning}"
+                                        Width="30" Height="28" Margin="6,0,0,0"
+                                        ToolTip="Cancel"/>
+                                <TextBlock Text="{Binding CleanupStatus}"
+                                           VerticalAlignment="Center" FontSize="10"
+                                           Foreground="{StaticResource Ronin.CyanDim}"
+                                           Margin="10,0,0,0" TextWrapping="Wrap"/>
+                            </DockPanel>
+                        </StackPanel>
+
+                        <DataGrid Grid.Row="1"
+                                  ItemsSource="{Binding CleanupResults}"
+                                  IsReadOnly="True" AutoGenerateColumns="False"
+                                  Background="#080808" Foreground="#C8C8C8" BorderThickness="0"
+                                  GridLinesVisibility="Horizontal"
+                                  HorizontalGridLinesBrush="{StaticResource Ronin.BorderSubtle}"
+                                  RowBackground="#080808" AlternatingRowBackground="#0D0D0D"
+                                  ColumnHeaderHeight="24" FontSize="11" SelectionMode="Single"
+                                  Margin="12,0,12,0">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Name"     Binding="{Binding Name}"        Width="*"/>
+                                <DataGridTextColumn Header="Size"     Binding="{Binding SizeDisplay}"  Width="70"/>
+                                <DataGridTextColumn Header="Modified" Binding="{Binding DateModified, StringFormat='{}{0:yyyy-MM-dd}'}" Width="90"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <StackPanel Grid.Row="2" Margin="12,6,12,12">
+                            <Border Background="#1C0505" CornerRadius="3"
+                                    BorderBrush="#5A0A0A" BorderThickness="1"
+                                    Padding="8,6" Margin="0,0,0,6"
+                                    Visibility="{Binding CleanupRecycle, Converter={StaticResource InvBoolToVis}}">
+                                <TextBlock FontSize="10" Foreground="#E04040" TextWrapping="Wrap"
+                                           Text="⚠  Permanent delete is enabled. Matched files will not go to the Recycle Bin."/>
+                            </Border>
+                            <Button Content="▶   Apply Cleanup"
+                                    Command="{Binding ApplyCleanupCommand}"
+                                    IsEnabled="{Binding IsCleaning, Converter={StaticResource InvBool}}"
+                                    Height="34" FontSize="12"
+                                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}"/>
+                        </StackPanel>
+                    </Grid>
+                </TabItem>
+
             </TabControl>
         </Grid>
 
@@ -969,6 +1302,16 @@
                                FontSize="10" Foreground="{StaticResource Ronin.TextDim}"
                                VerticalAlignment="Center"/>
                 </StackPanel>
+                <!-- Scan progress (visible only while an operation runs) -->
+                <ProgressBar DockPanel.Dock="Right"
+                             Width="150" Height="12" Margin="12,0,12,0"
+                             Minimum="0" Maximum="100"
+                             Value="{Binding ScanProgress}"
+                             IsIndeterminate="{Binding ScanIndeterminate}"
+                             Foreground="{StaticResource Ronin.Cyan}"
+                             Background="#141414"
+                             BorderBrush="{StaticResource Ronin.Border}"
+                             Visibility="{Binding IsOperationRunning, Converter={StaticResource BoolToVis}}"/>
                 <!-- Main status info -->
                 <TextBlock Text="{Binding StatusBarText}"
                            FontSize="11"

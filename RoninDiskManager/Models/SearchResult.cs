@@ -21,13 +21,9 @@ public sealed class SearchResult
     public long SizeBytes { get; init; }
 
     /// <summary>Human-readable file size string.</summary>
-    public string SizeDisplay => SizeBytes switch
-    {
-        <= 0             => string.Empty,
-        >= 1_073_741_824 => $"{SizeBytes / 1_073_741_824.0:F1} GB",
-        >= 1_048_576     => $"{SizeBytes / 1_048_576.0:F0} MB",
-        _                => $"{SizeBytes / 1024.0:F0} KB"
-    };
+    public string SizeDisplay => SizeBytes <= 0
+        ? string.Empty
+        : Engine.FileSystemHelpers.FormatBytes(SizeBytes);
 
     /// <summary>Last-modified timestamp. MinValue when unavailable.</summary>
     public DateTime DateModified { get; init; }
@@ -37,4 +33,17 @@ public sealed class SearchResult
     /// "File Folder" for directories, or "File" when there is no extension.
     /// </summary>
     public string FileType { get; init; } = string.Empty;
+
+    // ── Largest Files / free-space target (unused elsewhere) ──────────────────
+
+    /// <summary>Running total of this row plus all larger rows above it.</summary>
+    public long CumulativeBytes { get; set; }
+
+    /// <summary>Human-readable cumulative total.</summary>
+    public string CumulativeDisplay => CumulativeBytes <= 0
+        ? string.Empty
+        : Engine.FileSystemHelpers.FormatBytes(CumulativeBytes);
+
+    /// <summary>True when this row falls within the configured free-space target.</summary>
+    public bool WithinFreeSpaceTarget { get; set; }
 }

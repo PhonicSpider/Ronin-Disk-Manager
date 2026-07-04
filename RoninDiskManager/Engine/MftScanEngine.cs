@@ -25,10 +25,11 @@ internal class MftScanEngine
     internal async Task<DiskNode> ScanAsync(
         string             rootPath,
         Action<string>     logConsole,
-        IProgress<string>? progress = null,
-        CancellationToken  ct       = default)
+        IProgress<string>? progress    = null,
+        CancellationToken  ct          = default,
+        IProgress<double>? progressPct = null)
     {
-        return await Task.Run(() => ScanInternal(rootPath, logConsole, progress, ct), ct);
+        return await Task.Run(() => ScanInternal(rootPath, logConsole, progress, ct, progressPct), ct);
     }
 
     // ── Top-level orchestration ───────────────────────────────────────────────
@@ -36,7 +37,8 @@ internal class MftScanEngine
         string             rootPath,
         Action<string>     logConsole,
         IProgress<string>? progress,
-        CancellationToken  ct)
+        CancellationToken  ct,
+        IProgress<double>? progressPct)
     {
         var volumeRoot = Path.GetPathRoot(rootPath) ?? rootPath;
         var devicePath = $@"\\.\{volumeRoot.TrimEnd('\\')}";
@@ -80,7 +82,7 @@ internal class MftScanEngine
         // ── Step 5: populate file sizes via batched directory enumeration ──────
         logConsole("[MFT] Gathering file sizes (batched per directory)...");
 
-        PopulateSizes(nodeMap, logConsole, progress, ct);
+        PopulateSizes(nodeMap, logConsole, progress, ct, progressPct);
         ct.ThrowIfCancellationRequested();
 
         // ── Step 6: aggregate sizes bottom-up ─────────────────────────────────
@@ -340,7 +342,8 @@ internal class MftScanEngine
         Dictionary<ulong, DiskNode> nodeMap,
         Action<string>     logConsole,
         IProgress<string>? progress,
-        CancellationToken  ct)
+        CancellationToken  ct,
+        IProgress<double>? progressPct = null)
     {
         var directories = nodeMap.Values.Where(n => n.IsDirectory).ToList();
         long processed  = 0;
@@ -361,7 +364,10 @@ internal class MftScanEngine
                     foreach (var child in dir.Children)
                     {
                         if (!child.IsDirectory && sizeMap.TryGetValue(child.Name, out var fi))
+                        {
                             child.SizeBytes = fi.Length;
+                            try { child.LastWriteUtc = fi.LastWriteTimeUtc; } catch { /* leave default */ }
+                        }
                     }
                 }
                 catch (Exception) { /* inaccessible dirs (system, recycle bin, etc.) are skipped */ }
@@ -369,6 +375,8 @@ internal class MftScanEngine
                 long done = Interlocked.Increment(ref processed);
                 if (done % 5_000 == 0)
                     logConsole($"[MFT]   ... {done:N0} / {directories.Count:N0} directories sized");
+                if (directories.Count > 0 && done % 500 == 0)
+                    progressPct?.Report((double)done / directories.Count);
             });
     }
 

@@ -68,11 +68,21 @@ public static class FileSystemHelpers
         return @"\\?\" + path;
     }
 
-    /// <summary>Human-readable byte size (KB / MB / GB), matching the app's display style.</summary>
-    public static string FormatBytes(long bytes) => bytes switch
+    /// <summary>
+    /// When true (default) sizes use binary units (1 KB = 1024 bytes); when false
+    /// they use decimal units (1 KB = 1000 bytes). Set once at startup from settings.
+    /// </summary>
+    public static bool UseBinaryUnits { get; set; } = true;
+
+    /// <summary>Human-readable byte size (KB / MB / GB), honoring <see cref="UseBinaryUnits"/>.</summary>
+    public static string FormatBytes(long bytes)
     {
-        >= 1_073_741_824 => $"{bytes / 1_073_741_824.0:F1} GB",
-        >= 1_048_576     => $"{bytes / 1_048_576.0:F0} MB",
-        _                => $"{bytes / 1024.0:F0} KB"
-    };
+        double kb = UseBinaryUnits ? 1024.0 : 1000.0;
+        double mb = kb * kb;
+        double gb = mb * kb;
+
+        if (bytes >= gb) return $"{bytes / gb:F1} GB";
+        if (bytes >= mb) return $"{bytes / mb:F0} MB";
+        return $"{bytes / kb:F0} KB";
+    }
 }

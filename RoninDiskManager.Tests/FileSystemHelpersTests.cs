@@ -78,6 +78,27 @@ public class FileSystemHelpersTests
     [InlineData(1_048_576, "1 MB")]
     [InlineData(1_073_741_824, "1.0 GB")]
     [InlineData(3_221_225_472, "3.0 GB")]
-    public void FormatBytes_ProducesExpectedString(long bytes, string expected)
-        => Assert.Equal(expected, FileSystemHelpers.FormatBytes(bytes));
+    public void FormatBytes_Binary_ProducesExpectedString(long bytes, string expected)
+    {
+        // Default is binary; assert and leave it as it was.
+        Assert.True(FileSystemHelpers.UseBinaryUnits);
+        Assert.Equal(expected, FileSystemHelpers.FormatBytes(bytes));
+    }
+
+    [Theory]
+    [InlineData(1000, "1 KB")]
+    [InlineData(1_000_000, "1 MB")]
+    [InlineData(1_000_000_000, "1.0 GB")]
+    public void FormatBytes_Decimal_UsesPowersOfOneThousand(long bytes, string expected)
+    {
+        try
+        {
+            FileSystemHelpers.UseBinaryUnits = false;
+            Assert.Equal(expected, FileSystemHelpers.FormatBytes(bytes));
+        }
+        finally
+        {
+            FileSystemHelpers.UseBinaryUnits = true;
+        }
+    }
 }

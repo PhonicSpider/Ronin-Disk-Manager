@@ -10,7 +10,7 @@
     <AssemblyName>RoninDiskManager</AssemblyName>
     <RootNamespace>RoninDiskManager</RootNamespace>
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
-    <Version>1.4.0</Version>
+    <Version>1.5.0</Version>
     <Authors>Ronin Empire</Authors>
     <Description>NTFS-native disk usage analyzer and bulk file manager for Windows.</Description>
     <Copyright>Copyright © 2025 Ronin Empire</Copyright>

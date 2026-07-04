@@ -20,8 +20,9 @@ public class ScanEngine
     public async Task<DiskNode> ScanAsync(
         string             rootPath,
         Action<string>     logConsole,
-        IProgress<string>? progress = null,
-        CancellationToken  ct       = default)
+        IProgress<string>? progress   = null,
+        CancellationToken  ct         = default,
+        IProgress<double>? progressPct = null)
     {
         // ── Filesystem detection ──────────────────────────────────────────────
         bool isNtfs = IsNtfs(rootPath, logConsole);
@@ -31,7 +32,7 @@ public class ScanEngine
             logConsole("[Engine] NTFS volume detected. Using MFT scanner.");
             try
             {
-                return await _mft.ScanAsync(rootPath, logConsole, progress, ct);
+                return await _mft.ScanAsync(rootPath, logConsole, progress, ct, progressPct);
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
