@@ -33,6 +33,7 @@ On NTFS drives it reads the Master File Table directly via the USN journal (the 
 - Automatic fallback: standard directory walker for FAT32, exFAT, and network drives, used automatically when MFT access is unavailable.
 - Tree view: lazy-loading, virtualized, sorted by size, with a proportion bar and percentage of the root total on every row.
 - Treemap view: squarified treemap visualization with multi-level drill-down, similar to WinDirStat.
+- Largest files view: a flat, sortable list of the biggest files found in the scan, so the top space hogs are one click away.
 - Scan summary: total size, elapsed time, and file and directory counts after every scan.
 - Cancellable: stop any scan or search in progress from the toolbar.
 
@@ -46,9 +47,10 @@ On NTFS drives it reads the Master File Table directly via the USN journal (the 
 ### File operations
 
 - Move operations: PowerShell `Move-Item` with Force, WhatIf, Verbose, NeverOverwrite, LiteralPath, and Filter, Include, and Exclude patterns.
-- Delete operations: PowerShell `Remove-Item` with Force, Recurse, WhatIf, Verbose, LiteralPath, and Filter, Include, and Exclude patterns.
-- Dry-run mode: the WhatIf flag on both operations lets you preview changes before committing.
-- Confirmation before deletes, and an abort-if-destination-exists check for moves.
+- Copy operations: PowerShell `Copy-Item` with Recurse, Force, WhatIf, Verbose, LiteralPath, and Filter, Include, and Exclude patterns.
+- Delete operations: send items to the Recycle Bin (the recommended default, recoverable), or delete permanently with `Remove-Item` using Force, Recurse, WhatIf, Verbose, LiteralPath, and Filter, Include, and Exclude patterns.
+- Dry-run mode: the WhatIf flag on Move, Copy, and permanent Delete lets you preview changes before committing.
+- Confirmation before every delete, and an abort-if-destination-exists check for moves.
 - Real-time console: live PowerShell stdout and stderr streamed to the in-app console, with exit-code reporting.
 
 ### Windows tools
@@ -67,6 +69,12 @@ On NTFS drives it reads the Master File Table directly via the USN journal (the 
 - Keyboard shortcuts: `Ctrl+E` to open in Explorer, `Ctrl+Shift+C` to copy the path.
 - Resizable layout: drag the splitters to resize the tree, action panel, and console.
 - Ronin theme: dark crimson, orange, cyan, and black color scheme.
+
+### Reliability
+
+- Junction and symlink safe: scanning and search never follow reparse points, so they cannot loop forever or double-count storage that physically lives elsewhere.
+- Long-path aware: the app opts in to Windows long-path support so scanning and enumeration handle paths beyond the legacy 260-character limit.
+- Unit tested: the command builders and file-system helpers are covered by an xUnit test project (`RoninDiskManager.Tests`).
 
 ---
 
@@ -122,8 +130,8 @@ Output: `RoninDiskManager/bin/Release/net8.0-windows/win-x64/publish/RoninDiskMa
 
 1. Scan: Enter a path and click Scan. On NTFS, the engine opens the raw volume (`\\.\C:`), streams all MFT records via `FSCTL_ENUM_USN_DATA`, resolves full paths, and populates file sizes in a parallel directory-batched pass. On other filesystems it falls back to a recursive `EnumerateFileSystemInfos` walk.
 2. Search: Enter a name or pattern and click Search to scan every fixed drive in parallel. Results appear in a sortable grid.
-3. Browse: The tree view shows directories sorted by size. Expand any node to see its children, or switch to the treemap for a visual overview.
-4. Act: Select a node, choose Move or Delete, configure flags and filters, then click Execute. A confirmation dialog is shown before any delete. Use WhatIf for a dry run first.
+3. Browse: The tree view shows directories sorted by size. Expand any node to see its children, switch to the treemap for a visual overview, or open the Largest Files tab to jump straight to the biggest items.
+4. Act: Select a node, choose Move, Copy, or Delete, configure flags and filters, then click Execute. Deletes go to the Recycle Bin by default and always ask for confirmation. Use WhatIf for a dry run first.
 5. Maintain: Open the Tools tab to run CHKDSK, SFC, DISM, network resets, and other Windows maintenance commands.
 6. Review: All PowerShell output appears in the console panel in real time.
 
@@ -134,23 +142,28 @@ Output: `RoninDiskManager/bin/Release/net8.0-windows/win-x64/publish/RoninDiskMa
 ```
 RoninDiskManager/
 ├── Engine/
-│   ├── ScanEngine.cs          # Facade that detects NTFS and routes to the right scanner
-│   ├── MftScanEngine.cs       # NTFS USN journal scanner (fast path)
-│   ├── FallbackScanEngine.cs  # Recursive Win32 directory walker (non-NTFS)
-│   ├── SearchEngine.cs        # Parallel all-drives filename search
-│   └── NativeMethods.cs       # P/Invoke declarations (CreateFile, DeviceIoControl)
+│   ├── ScanEngine.cs           # Facade that detects NTFS and routes to the right scanner
+│   ├── MftScanEngine.cs        # NTFS USN journal scanner (fast path)
+│   ├── FallbackScanEngine.cs   # Recursive Win32 directory walker (non-NTFS)
+│   ├── SearchEngine.cs         # Parallel all-drives filename search
+│   ├── ShellCommandBuilder.cs  # Pure builders for the Move / Copy / Delete PowerShell commands
+│   ├── FileSystemHelpers.cs    # Reparse-point, filename match, and long-path helpers
+│   ├── RecycleBin.cs           # Send to Recycle Bin via SHFileOperation
+│   └── NativeMethods.cs        # P/Invoke declarations (CreateFile, DeviceIoControl, SHFileOperation)
 ├── Models/
-│   ├── DiskNode.cs            # File or directory tree node
-│   └── SearchResult.cs        # A single search hit
+│   ├── DiskNode.cs             # File or directory tree node
+│   └── SearchResult.cs         # A single search / largest-file row
 ├── ViewModels/
-│   ├── MainViewModel.cs       # All state, commands, PowerShell execution, and tools
-│   └── DiskNodeViewModel.cs   # Lazy-loading tree node presentation layer
+│   ├── MainViewModel.cs        # All state, commands, PowerShell execution, and tools
+│   └── DiskNodeViewModel.cs    # Lazy-loading tree node presentation layer
 ├── Controls/
-│   └── TreemapControl         # Squarified treemap rendering and interaction
-├── Converters/                # WPF value converters
-├── Assets/                    # App icon
-├── MainWindow.xaml            # UI layout (tree, treemap, search, actions, tools, console)
-└── App.xaml                   # Theme and global resources
+│   └── TreemapControl          # Squarified treemap rendering and interaction
+├── Converters/                 # WPF value converters
+├── Assets/                     # App icon
+├── MainWindow.xaml             # UI layout (tree, treemap, largest files, actions, tools, console)
+└── App.xaml                    # Theme and global resources
+
+RoninDiskManager.Tests/         # xUnit tests for the command builders and helpers
 ```
 
 ---

@@ -239,6 +239,8 @@
                                     <Separator/>
                                     <MenuItem Header="📦  Move…"
                                               Command="{Binding SetMoveModeCommand}"/>
+                                    <MenuItem Header="📑  Copy…"
+                                              Command="{Binding SetCopyModeCommand}"/>
                                     <MenuItem Header="🗑  Delete…"
                                               Command="{Binding SetDeleteModeCommand}"/>
                                 </ContextMenu>
@@ -337,6 +339,8 @@
                                     <Separator/>
                                     <MenuItem Header="📦  Move…"
                                               Command="{Binding SetMoveModeCommand}"/>
+                                    <MenuItem Header="📑  Copy…"
+                                              Command="{Binding SetCopyModeCommand}"/>
                                     <MenuItem Header="🗑  Delete…"
                                               Command="{Binding SetDeleteModeCommand}"/>
                                 </ContextMenu>
@@ -358,6 +362,48 @@
                     <ctrl:TreemapControl
                         RootNode="{Binding TreemapRoot}"
                         SelectedDiskNode="{Binding TreemapSelectedNode, Mode=OneWayToSource}"/>
+                </TabItem>
+
+                <!-- ══════════════════════════════ TAB: LARGEST FILES -->
+                <TabItem Header="  Largest Files  ">
+                    <DataGrid x:Name="LargestGrid"
+                              ItemsSource="{Binding LargestFiles}"
+                              SelectedItem="{Binding SelectedLargestFile}"
+                              IsReadOnly="True"
+                              AutoGenerateColumns="False"
+                              Background="#080808"
+                              Foreground="#C8C8C8"
+                              BorderThickness="0"
+                              GridLinesVisibility="Horizontal"
+                              HorizontalGridLinesBrush="{StaticResource Ronin.BorderSubtle}"
+                              RowBackground="#080808"
+                              AlternatingRowBackground="#0D0D0D"
+                              ColumnHeaderHeight="26"
+                              FontSize="12"
+                              SelectionMode="Single"
+                              Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
+                        <DataGrid.ContextMenu>
+                            <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
+                                <MenuItem Header="🗂  Open in Explorer"
+                                          Command="{Binding OpenInExplorerCommand}"/>
+                                <MenuItem Header="📋  Copy Path"
+                                          Command="{Binding CopyPathCommand}"/>
+                                <Separator/>
+                                <MenuItem Header="📦  Move…"
+                                          Command="{Binding SetMoveModeCommand}"/>
+                                <MenuItem Header="📑  Copy…"
+                                          Command="{Binding SetCopyModeCommand}"/>
+                                <MenuItem Header="🗑  Delete…"
+                                          Command="{Binding SetDeleteModeCommand}"/>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Name"     Binding="{Binding Name}"        Width="*"/>
+                            <DataGridTextColumn Header="Size"     Binding="{Binding SizeDisplay}"  Width="80"/>
+                            <DataGridTextColumn Header="Modified" Binding="{Binding DateModified, StringFormat='{}{0:yyyy-MM-dd}'}" Width="95"/>
+                            <DataGridTextColumn Header="Path"     Binding="{Binding FullPath}"     Width="2*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
                 </TabItem>
 
             </TabControl>
@@ -459,7 +505,14 @@
                                                  Command="{Binding SetMoveModeCommand}"
                                                  Style="{DynamicResource MahApps.Styles.ToggleButton}"
                                                  GroupName="ActionGroup"
-                                                 ToolTip="Move/Copy selected item"/>
+                                                 ToolTip="Move selected item to a destination"/>
+                                    <RadioButton Content="  Copy  "
+                                                 IsChecked="{Binding IsCopyMode}"
+                                                 Command="{Binding SetCopyModeCommand}"
+                                                 Style="{DynamicResource MahApps.Styles.ToggleButton}"
+                                                 GroupName="ActionGroup"
+                                                 ToolTip="Copy selected item to a destination"
+                                                 Margin="8,0,0,0"/>
                                     <RadioButton Content="  Delete  "
                                                  IsChecked="{Binding IsDeleteMode}"
                                                  Command="{Binding SetDeleteModeCommand}"
@@ -527,9 +580,75 @@
                                              ToolTip="Comma-separated patterns to exclude. Supports wildcards."/>
                                 </StackPanel>
 
+                                <!-- ──────────────────────────────────── COPY PANEL -->
+                                <StackPanel Visibility="{Binding IsCopyMode, Converter={StaticResource BoolToVis}}">
+
+                                    <TextBlock Text="DESTINATION" Style="{StaticResource SectionLabel}"/>
+                                    <DockPanel LastChildFill="True">
+                                        <Button DockPanel.Dock="Right"
+                                                Content="…" Width="34" Margin="4,0,0,0"
+                                                Command="{Binding BrowseDestinationCommand}"
+                                                ToolTip="Browse for destination folder"/>
+                                        <TextBox Text="{Binding Destination, UpdateSourceTrigger=PropertyChanged}"
+                                                 mah:TextBoxHelper.Watermark="e.g.  E:\Backup"
+                                                 Background="#141414" Foreground="#D0D0D0"
+                                                 BorderBrush="{StaticResource Ronin.Border}"
+                                                 CaretBrush="{StaticResource Ronin.Cyan}"/>
+                                    </DockPanel>
+
+                                    <TextBlock Text="FLAGS" Style="{StaticResource SectionLabel}"/>
+                                    <CheckBox Content="Recurse (copy folder contents)"
+                                              IsChecked="{Binding CopyRecurse}"
+                                              Style="{StaticResource FlagCheck}"
+                                              ToolTip="Copies all files and subdirectories inside the selected folder. Required to copy a folder tree."/>
+                                    <CheckBox Content="Force (overwrite existing files)"
+                                              IsChecked="{Binding CopyForce}"
+                                              Style="{StaticResource FlagCheck}"
+                                              ToolTip="Overwrites existing and read-only files at the destination without prompting."/>
+                                    <CheckBox Content="WhatIf  (dry run, no changes made)"
+                                              IsChecked="{Binding CopyWhatIf}"
+                                              Style="{StaticResource FlagCheck}"
+                                              ToolTip="Simulates the copy and prints what would happen, without making any changes."/>
+                                    <CheckBox Content="Verbose (log each copied item)"
+                                              IsChecked="{Binding CopyVerbose}"
+                                              Style="{StaticResource FlagCheck}"
+                                              ToolTip="Outputs a line to the console for each file or folder that is copied."/>
+                                    <CheckBox Content="LiteralPath (treat [ and ] as literal)"
+                                              IsChecked="{Binding CopyLiteralPath}"
+                                              Style="{StaticResource FlagCheck}"
+                                              ToolTip="Treats special characters like [ and ] as literal text instead of wildcards."/>
+
+                                    <TextBlock Text="FILTER  (optional)" Style="{StaticResource SectionLabel}"/>
+                                    <TextBox Text="{Binding CopyFilter, UpdateSourceTrigger=PropertyChanged}"
+                                             mah:TextBoxHelper.Watermark="e.g. *.txt"
+                                             Background="#141414" Foreground="#D0D0D0"
+                                             BorderBrush="{StaticResource Ronin.Border}"
+                                             ToolTip="Fast provider-level filter. Only one pattern allowed."/>
+                                    <TextBlock Text="INCLUDE  (optional)" Style="{StaticResource SectionLabel}"/>
+                                    <TextBox Text="{Binding CopyInclude, UpdateSourceTrigger=PropertyChanged}"
+                                             mah:TextBoxHelper.Watermark="e.g. *.png, *.jpg"
+                                             Background="#141414" Foreground="#D0D0D0"
+                                             BorderBrush="{StaticResource Ronin.Border}"
+                                             ToolTip="Comma-separated patterns to include. Supports wildcards."/>
+                                    <TextBlock Text="EXCLUDE  (optional)" Style="{StaticResource SectionLabel}"/>
+                                    <TextBox Text="{Binding CopyExclude, UpdateSourceTrigger=PropertyChanged}"
+                                             mah:TextBoxHelper.Watermark="e.g. *.tmp, *.log"
+                                             Background="#141414" Foreground="#D0D0D0"
+                                             BorderBrush="{StaticResource Ronin.Border}"
+                                             ToolTip="Comma-separated patterns to exclude. Supports wildcards."/>
+                                </StackPanel>
+
                                 <!-- ────────────────────────────────── DELETE PANEL -->
                                 <StackPanel Visibility="{Binding IsDeleteMode, Converter={StaticResource BoolToVis}}">
 
+                                    <TextBlock Text="MODE" Style="{StaticResource SectionLabel}"/>
+                                    <CheckBox Content="Send to Recycle Bin (recommended)"
+                                              IsChecked="{Binding DeleteToRecycleBin}"
+                                              Style="{StaticResource FlagCheck}"
+                                              ToolTip="When ticked, the item goes to the Recycle Bin and can be restored. Untick to delete permanently with the flags below."/>
+
+                                    <!-- Permanent-delete options (only relevant when not recycling) -->
+                                    <StackPanel Visibility="{Binding DeleteToRecycleBin, Converter={StaticResource InvBoolToVis}}">
                                     <TextBlock Text="FLAGS" Style="{StaticResource SectionLabel}"/>
                                     <CheckBox Content="Force (remove read-only and hidden items)"
                                               IsChecked="{Binding DeleteForce}"
@@ -575,6 +694,8 @@
                                                    Foreground="#E04040"
                                                    TextWrapping="Wrap" FontSize="12"/>
                                     </Border>
+                                    </StackPanel>
+                                    <!-- end permanent-delete options -->
                                 </StackPanel>
 
                                 <!-- Execute button -->

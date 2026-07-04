@@ -61,6 +61,22 @@ internal class FallbackScanEngine
                     }
                     else if (entry is DirectoryInfo di)
                     {
+                        // Never descend into reparse points (junctions / symlinks):
+                        // they can create traversal loops or double-count storage
+                        // that physically lives elsewhere.
+                        if (FileSystemHelpers.IsReparsePoint(di))
+                        {
+                            node.Children.Add(new DiskNode
+                            {
+                                Name        = di.Name,
+                                FullPath    = di.FullName,
+                                IsDirectory = true,
+                                SizeBytes   = 0,
+                                Parent      = node
+                            });
+                            continue;
+                        }
+
                         var child = ScanDirectory(di.FullName, node, logConsole, progress, ct);
                         node.Children.Add(child);
                         totalSize += child.SizeBytes;

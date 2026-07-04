@@ -75,4 +75,30 @@ internal static class NativeMethods
         int                  nOutBufferSize,
         out uint             lpBytesReturned,
         IntPtr               lpOverlapped);
+
+    // ── Shell file operations (Recycle Bin) ───────────────────────────────────
+    // SHFileOperation with FO_DELETE + FOF_ALLOWUNDO sends items to the Recycle
+    // Bin instead of deleting them permanently. Works for both files and folders.
+
+    internal const uint FO_DELETE           = 0x0003;
+    internal const ushort FOF_ALLOWUNDO     = 0x0040;  // send to Recycle Bin
+    internal const ushort FOF_NOCONFIRMATION = 0x0010; // we show our own prompt
+    internal const ushort FOF_NOERRORUI     = 0x0400;  // suppress OS error dialogs
+    internal const ushort FOF_WANTNUKEWARNING = 0x4000; // warn if it would be permanent
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    internal struct SHFILEOPSTRUCT
+    {
+        public IntPtr hwnd;
+        public uint   wFunc;
+        [MarshalAs(UnmanagedType.LPWStr)] public string pFrom;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? pTo;
+        public ushort fFlags;
+        [MarshalAs(UnmanagedType.Bool)] public bool fAnyOperationsAborted;
+        public IntPtr hNameMappings;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? lpszProgressTitle;
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    internal static extern int SHFileOperation(ref SHFILEOPSTRUCT lpFileOp);
 }

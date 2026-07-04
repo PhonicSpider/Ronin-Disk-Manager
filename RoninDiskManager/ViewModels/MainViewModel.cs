@@ -53,6 +53,12 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private ObservableCollection<SearchResult> _searchResults = [];
     [ObservableProperty] private SearchResult? _selectedSearchResult;
 
+    // ── Largest files (populated after each scan) ──────────────────────────────
+    /// <summary>Number of biggest files surfaced in the Largest Files tab.</summary>
+    private const int LargestFilesCount = 200;
+    [ObservableProperty] private ObservableCollection<SearchResult> _largestFiles = [];
+    [ObservableProperty] private SearchResult? _selectedLargestFile;
+
     // ── Unified input bar ─────────────────────────────────────────────────────
     [ObservableProperty] private string _inputQuery = @"C:\";
     [ObservableProperty] private bool _isShowingSearchResults;
@@ -100,11 +106,17 @@ public partial class MainViewModel : ObservableObject
 
     // ── Action mode ───────────────────────────────────────────────────────────
     [ObservableProperty] private bool _isMoveMode = true;
+    [ObservableProperty] private bool _isCopyMode;
     [ObservableProperty] private bool _isDeleteMode;
 
-    public string ExecuteButtonText => IsMoveMode ? "▶   Execute Move" : "▶   Execute Delete";
+    public string ExecuteButtonText =>
+        IsMoveMode ? "▶   Execute Move"
+      : IsCopyMode ? "▶   Execute Copy"
+      : DeleteToRecycleBin ? "▶   Send to Recycle Bin"
+      : "▶   Delete Permanently";
 
     // ── Move flags ────────────────────────────────────────────────────────────
+    // Destination is shared by both Move and Copy (only one mode is active).
     [ObservableProperty] private string _destination = string.Empty;
     [ObservableProperty] private bool _moveForce = true;
     [ObservableProperty] private bool _moveWhatIf;
@@ -115,7 +127,19 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _moveInclude = string.Empty;
     [ObservableProperty] private string _moveExclude = string.Empty;
 
+    // ── Copy flags ────────────────────────────────────────────────────────────
+    [ObservableProperty] private bool _copyForce = true;
+    [ObservableProperty] private bool _copyRecurse = true;   // needed to copy folder trees
+    [ObservableProperty] private bool _copyWhatIf;
+    [ObservableProperty] private bool _copyVerbose = true;
+    [ObservableProperty] private bool _copyLiteralPath;
+    [ObservableProperty] private string _copyFilter = string.Empty;
+    [ObservableProperty] private string _copyInclude = string.Empty;
+    [ObservableProperty] private string _copyExclude = string.Empty;
+
     // ── Delete flags ──────────────────────────────────────────────────────────
+    /// <summary>When true (default), Delete sends items to the Recycle Bin instead of erasing them.</summary>
+    [ObservableProperty] private bool _deleteToRecycleBin = true;
     [ObservableProperty] private bool _deleteForce = true;
     [ObservableProperty] private bool _deleteRecurse = true;
     [ObservableProperty] private bool _deleteWhatIf;
@@ -124,6 +148,8 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _deleteFilter = string.Empty;
     [ObservableProperty] private string _deleteInclude = string.Empty;
     [ObservableProperty] private string _deleteExclude = string.Empty;
+
+    partial void OnDeleteToRecycleBinChanged(bool value) => OnPropertyChanged(nameof(ExecuteButtonText));
 
     // ── Commands ──────────────────────────────────────────────────────────────
 
@@ -141,6 +167,7 @@ public partial class MainViewModel : ObservableObject
         IsScanning = true;
         OnPropertyChanged(nameof(IsOperationRunning));
         TreeRoots.Clear();
+        LargestFiles.Clear();
         SelectedNode = null;
 
         var progress = new Progress<string>(msg =>
@@ -162,6 +189,7 @@ public partial class MainViewModel : ObservableObject
 
             TreeRoots.Add(new DiskNodeViewModel(root, root.SizeBytes));
             TreemapRoot = root;
+            PopulateLargestFiles(root);
             ScanStatus = $"Done. {FormatBytes(root.SizeBytes)} in {sw.Elapsed.TotalSeconds:F1}s  ·  {_totalScannedFiles:N0} files  ·  {_totalScannedDirs:N0} dirs";
             AppendConsole($"✔  Scan complete in {sw.Elapsed.TotalSeconds:F1}s  {FormatBytes(root.SizeBytes)} total\n");
             _lastStatus = ScanStatus;
@@ -217,6 +245,16 @@ public partial class MainViewModel : ObservableObject
     private void SetMoveMode()
     {
         IsMoveMode = true;
+        IsCopyMode = false;
+        IsDeleteMode = false;
+        OnPropertyChanged(nameof(ExecuteButtonText));
+    }
+
+    [RelayCommand]
+    private void SetCopyMode()
+    {
+        IsCopyMode = true;
+        IsMoveMode = false;
         IsDeleteMode = false;
         OnPropertyChanged(nameof(ExecuteButtonText));
     }
@@ -226,6 +264,7 @@ public partial class MainViewModel : ObservableObject
     {
         IsDeleteMode = true;
         IsMoveMode = false;
+        IsCopyMode = false;
         OnPropertyChanged(nameof(ExecuteButtonText));
     }
 
@@ -254,19 +293,66 @@ public partial class MainViewModel : ObservableObject
 
             await RunPowerShellAsync(BuildMoveCommand());
         }
+        else if (IsCopyMode)
+        {
+            if (string.IsNullOrWhiteSpace(Destination))
+            {
+                AppendConsole("✖  Destination is required for Copy.\n");
+                return;
+            }
+
+            await RunPowerShellAsync(BuildCopyCommand());
+        }
         else
         {
-            var result = MessageBox.Show(
-                $"Permanently delete:\n\n{SelectedNode.FullPath}\n\nThis cannot be undone.",
-                "Confirm Delete",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning,
-                MessageBoxResult.No);
-
-            if (result != MessageBoxResult.Yes) return;
-
-            await RunPowerShellAsync(BuildDeleteCommand());
+            await ExecuteDeleteAsync();
         }
+    }
+
+    private async Task ExecuteDeleteAsync()
+    {
+        if (SelectedNode == null) return;
+
+        bool recycle = DeleteToRecycleBin;
+
+        // The classic Recycle Bin API can't address extended-length paths.
+        if (recycle && FileSystemHelpers.ExceedsLegacyMaxPath(SelectedNode.FullPath))
+        {
+            AppendConsole("⚠  Path exceeds 260 characters; Recycle Bin is unavailable. Use permanent delete for this item.\n");
+            return;
+        }
+
+        string prompt = recycle
+            ? $"Send to Recycle Bin:\n\n{SelectedNode.FullPath}\n\nYou can restore it from the Recycle Bin later."
+            : $"Permanently delete:\n\n{SelectedNode.FullPath}\n\nThis cannot be undone.";
+
+        var confirm = MessageBox.Show(
+            prompt,
+            recycle ? "Confirm Recycle" : "Confirm Permanent Delete",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+
+        if (confirm != MessageBoxResult.Yes) return;
+
+        if (recycle)
+            await RecycleSelectedAsync();
+        else
+            await RunPowerShellAsync(BuildDeleteCommand());
+    }
+
+    private async Task RecycleSelectedAsync()
+    {
+        var path = SelectedNode!.FullPath;
+        AppendConsole($"> Recycle '{path}'\n");
+        var (ok, error) = await Task.Run(() =>
+        {
+            bool success = RecycleBin.Send(path, out var err);
+            return (success, err);
+        });
+        AppendConsole(ok
+            ? "\n✔  Sent to Recycle Bin.\n"
+            : $"\n✖  {error}\n");
     }
 
     private bool CanExecuteAction() => SelectedNode != null;
@@ -277,7 +363,12 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(StatusBarText));
     }
 
-    partial void OnSelectedSearchResultChanged(SearchResult? value)
+    partial void OnSelectedSearchResultChanged(SearchResult? value) => SelectFromResult(value);
+
+    partial void OnSelectedLargestFileChanged(SearchResult? value) => SelectFromResult(value);
+
+    /// <summary>Bridges a grid-row selection (search or largest-files) into the action panel.</summary>
+    private void SelectFromResult(SearchResult? value)
     {
         if (value == null) return;
         var node = new DiskNode
@@ -366,37 +457,45 @@ public partial class MainViewModel : ObservableObject
 
     // ── Command builders ──────────────────────────────────────────────────────
 
-    private string BuildMoveCommand()
+    private string BuildMoveCommand() => ShellCommandBuilder.BuildMove(new ShellCommandBuilder.FileOpOptions
     {
-        var sb = new StringBuilder();
-        sb.Append(MoveLiteralPath
-            ? $"Move-Item -LiteralPath '{EscapePs(SelectedNode!.FullPath)}'"
-            : $"Move-Item -Path '{EscapePs(SelectedNode!.FullPath)}'");
-        sb.Append($" -Destination '{EscapePs(Destination)}'");
-        if (MoveForce)   sb.Append(" -Force");
-        if (MoveVerbose) sb.Append(" -Verbose");
-        if (MoveWhatIf)  sb.Append(" -WhatIf");
-        if (!string.IsNullOrWhiteSpace(MoveFilter))  sb.Append($" -Filter '{MoveFilter}'");
-        if (!string.IsNullOrWhiteSpace(MoveInclude)) sb.Append($" -Include {MoveInclude}");
-        if (!string.IsNullOrWhiteSpace(MoveExclude)) sb.Append($" -Exclude {MoveExclude}");
-        return sb.ToString();
-    }
+        SourcePath  = SelectedNode!.FullPath,
+        Destination = Destination,
+        Force       = MoveForce,
+        Verbose     = MoveVerbose,
+        WhatIf      = MoveWhatIf,
+        LiteralPath = MoveLiteralPath,
+        Filter      = MoveFilter,
+        Include     = MoveInclude,
+        Exclude     = MoveExclude,
+    });
 
-    private string BuildDeleteCommand()
+    private string BuildCopyCommand() => ShellCommandBuilder.BuildCopy(new ShellCommandBuilder.FileOpOptions
     {
-        var sb = new StringBuilder();
-        sb.Append(DeleteLiteralPath
-            ? $"Remove-Item -LiteralPath '{EscapePs(SelectedNode!.FullPath)}'"
-            : $"Remove-Item -Path '{EscapePs(SelectedNode!.FullPath)}'");
-        if (DeleteForce)   sb.Append(" -Force");
-        if (DeleteRecurse) sb.Append(" -Recurse");
-        if (DeleteVerbose) sb.Append(" -Verbose");
-        if (DeleteWhatIf)  sb.Append(" -WhatIf");
-        if (!string.IsNullOrWhiteSpace(DeleteFilter))  sb.Append($" -Filter '{DeleteFilter}'");
-        if (!string.IsNullOrWhiteSpace(DeleteInclude)) sb.Append($" -Include {DeleteInclude}");
-        if (!string.IsNullOrWhiteSpace(DeleteExclude)) sb.Append($" -Exclude {DeleteExclude}");
-        return sb.ToString();
-    }
+        SourcePath  = SelectedNode!.FullPath,
+        Destination = Destination,
+        Force       = CopyForce,
+        Recurse     = CopyRecurse,
+        Verbose     = CopyVerbose,
+        WhatIf      = CopyWhatIf,
+        LiteralPath = CopyLiteralPath,
+        Filter      = CopyFilter,
+        Include     = CopyInclude,
+        Exclude     = CopyExclude,
+    });
+
+    private string BuildDeleteCommand() => ShellCommandBuilder.BuildDelete(new ShellCommandBuilder.FileOpOptions
+    {
+        SourcePath  = SelectedNode!.FullPath,
+        Force       = DeleteForce,
+        Recurse     = DeleteRecurse,
+        Verbose     = DeleteVerbose,
+        WhatIf      = DeleteWhatIf,
+        LiteralPath = DeleteLiteralPath,
+        Filter      = DeleteFilter,
+        Include     = DeleteInclude,
+        Exclude     = DeleteExclude,
+    });
 
     // ── Execution ─────────────────────────────────────────────────────────────
 
@@ -462,8 +561,6 @@ public partial class MainViewModel : ObservableObject
     private void AppendConsole(string text)
         => Application.Current.Dispatcher.BeginInvoke(() => ConsoleText += text + "\n");
 
-    private static string EscapePs(string path) => path.Replace("'", "''");
-
     /// <summary>Counts files and directories in the scan tree iteratively.</summary>
     private static void CountNodes(DiskNode root, out int files, out int dirs)
     {
@@ -478,12 +575,45 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private static string FormatBytes(long bytes) => bytes switch
+    private static string FormatBytes(long bytes) => FileSystemHelpers.FormatBytes(bytes);
+
+    /// <summary>
+    /// Collects the biggest files in the scan tree and fills the Largest Files
+    /// tab. Timestamps are fetched only for the top N (a few hundred cheap stat
+    /// calls), not for the whole tree.
+    /// </summary>
+    private void PopulateLargestFiles(DiskNode root)
     {
-        >= 1_073_741_824 => $"{bytes / 1_073_741_824.0:F1} GB",
-        >= 1_048_576     => $"{bytes / 1_048_576.0:F0} MB",
-        _                => $"{bytes / 1024.0:F0} KB"
-    };
+        var top = new List<DiskNode>();
+        var stack = new Stack<DiskNode>();
+        stack.Push(root);
+        while (stack.Count > 0)
+        {
+            var n = stack.Pop();
+            if (!n.IsDirectory && n.SizeBytes > 0) top.Add(n);
+            foreach (var c in n.Children) stack.Push(c);
+        }
+
+        var biggest = top.OrderByDescending(n => n.SizeBytes).Take(LargestFilesCount);
+
+        LargestFiles.Clear();
+        foreach (var n in biggest)
+        {
+            DateTime modified = DateTime.MinValue;
+            try { modified = new FileInfo(n.FullPath).LastWriteTime; } catch { /* metadata unavailable */ }
+
+            var ext = Path.GetExtension(n.Name);
+            LargestFiles.Add(new SearchResult
+            {
+                Name         = n.Name,
+                FullPath     = n.FullPath,
+                IsDirectory  = false,
+                SizeBytes    = n.SizeBytes,
+                DateModified = modified,
+                FileType     = string.IsNullOrEmpty(ext) ? "File" : ext.TrimStart('.').ToUpperInvariant() + " File"
+            });
+        }
+    }
 
     // ── System Tools ──────────────────────────────────────────────────────────
 

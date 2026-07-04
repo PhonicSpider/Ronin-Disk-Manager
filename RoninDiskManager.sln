@@ -5,6 +5,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RoninDiskManager", "RoninDiskManager\RoninDiskManager.csproj", "{377C757F-049B-45CF-91F5-4511CE0FC08D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RoninDiskManager.Tests", "RoninDiskManager.Tests\RoninDiskManager.Tests.csproj", "{BC9EF02E-35B2-4DBD-B2C1-C03B4EC56ADC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,18 @@ Global
 		{377C757F-049B-45CF-91F5-4511CE0FC08D}.Release|x64.Build.0 = Release|Any CPU
 		{377C757F-049B-45CF-91F5-4511CE0FC08D}.Release|x86.ActiveCfg = Release|Any CPU
 		{377C757F-049B-45CF-91F5-4511CE0FC08D}.Release|x86.Build.0 = Release|Any CPU
+		{BC9EF02E-35B2-4DBD-B2C1-C03B4EC56ADC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BC9EF02E-35B2-4DBD-B2C1-C03B4EC56ADC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BC9EF02E-35B2-4DBD-B2C1-C03B4EC56ADC}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{BC9EF02E-35B2-4DBD-B2C1-C03B4EC56ADC}.Debug|x64.Build.0 = Debug|Any CPU
+		{BC9EF02E-35B2-4DBD-B2C1-C03B4EC56ADC}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{BC9EF02E-35B2-4DBD-B2C1-C03B4EC56ADC}.Debug|x86.Build.0 = Debug|Any CPU
+		{BC9EF02E-35B2-4DBD-B2C1-C03B4EC56ADC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BC9EF02E-35B2-4DBD-B2C1-C03B4EC56ADC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BC9EF02E-35B2-4DBD-B2C1-C03B4EC56ADC}.Release|x64.ActiveCfg = Release|Any CPU
+		{BC9EF02E-35B2-4DBD-B2C1-C03B4EC56ADC}.Release|x64.Build.0 = Release|Any CPU
+		{BC9EF02E-35B2-4DBD-B2C1-C03B4EC56ADC}.Release|x86.ActiveCfg = Release|Any CPU
+		{BC9EF02E-35B2-4DBD-B2C1-C03B4EC56ADC}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

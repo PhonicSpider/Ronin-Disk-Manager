@@ -108,15 +108,16 @@ public sealed class SearchEngine
             {
                 ct.ThrowIfCancellationRequested();
 
-                // Queue subdirectories for traversal
-                if (entry is DirectoryInfo subDir)
+                // Queue subdirectories for traversal, but never follow reparse
+                // points (junctions / symlinks) — they can loop or double-count.
+                if (entry is DirectoryInfo subDir && !FileSystemHelpers.IsReparsePoint(subDir))
                 {
                     try { stack.Push(subDir); }
-                    catch { /* skip inaccessible reparse points */ }
+                    catch { /* skip inaccessible directories */ }
                 }
 
                 // ── Name matching ─────────────────────────────────────────────
-                if (!Matches(entry.Name, query, isWildcard))
+                if (!FileSystemHelpers.MatchesQuery(entry.Name, query, isWildcard))
                     continue;
 
                 // ── Build SearchResult ────────────────────────────────────────
@@ -149,25 +150,6 @@ public sealed class SearchEngine
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Returns true if <paramref name="name"/> satisfies the search query.
-    /// Wildcard patterns are forwarded to <see cref="FileSystemName.MatchesSimpleExpression"/>;
-    /// plain strings are matched as case-insensitive substrings.
-    /// </summary>
-    private static bool Matches(string name, string query, bool isWildcard)
-    {
-        if (isWildcard)
-        {
-            // MatchesSimpleExpression is case-insensitive on Windows by default
-            // when ignoreCase=true (the default for the overload below)
-            return System.IO.Enumeration.FileSystemName.MatchesSimpleExpression(
-                query, name, ignoreCase: true);
-        }
-
-        // Plain substring search, case-insensitive
-        return name.Contains(query, StringComparison.OrdinalIgnoreCase);
-    }
 
     /// <summary>
     /// Derives a human-readable type string consistent with Windows Explorer:
