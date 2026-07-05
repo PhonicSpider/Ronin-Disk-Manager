@@ -267,6 +267,61 @@
                                           VerticalScrollBarVisibility="Disabled"
                                           Focusable="False"
                                           Padding="0">
+                                <ScrollViewer.Resources>
+                                    <!-- Thin, rounded, gray scrollbar — scoped to this tab strip only -->
+                                    <Style TargetType="ScrollBar">
+                                        <Setter Property="Height" Value="8"/>
+                                        <Setter Property="MinHeight" Value="8"/>
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="ScrollBar">
+                                                    <Grid Background="Transparent">
+                                                        <Track x:Name="PART_Track"
+                                                               Orientation="{TemplateBinding Orientation}"
+                                                               IsDirectionReversed="False">
+                                                            <Track.DecreaseRepeatButton>
+                                                                <RepeatButton Command="ScrollBar.PageLeftCommand" Focusable="False">
+                                                                    <RepeatButton.Template>
+                                                                        <ControlTemplate TargetType="RepeatButton">
+                                                                            <Border Background="Transparent"/>
+                                                                        </ControlTemplate>
+                                                                    </RepeatButton.Template>
+                                                                </RepeatButton>
+                                                            </Track.DecreaseRepeatButton>
+                                                            <Track.IncreaseRepeatButton>
+                                                                <RepeatButton Command="ScrollBar.PageRightCommand" Focusable="False">
+                                                                    <RepeatButton.Template>
+                                                                        <ControlTemplate TargetType="RepeatButton">
+                                                                            <Border Background="Transparent"/>
+                                                                        </ControlTemplate>
+                                                                    </RepeatButton.Template>
+                                                                </RepeatButton>
+                                                            </Track.IncreaseRepeatButton>
+                                                            <Track.Thumb>
+                                                                <Thumb>
+                                                                    <Thumb.Template>
+                                                                        <ControlTemplate TargetType="Thumb">
+                                                                            <Border x:Name="ThumbBorder"
+                                                                                    Background="#6A6A6A"
+                                                                                    CornerRadius="3"
+                                                                                    Height="4" Margin="0,2"/>
+                                                                            <ControlTemplate.Triggers>
+                                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                                    <Setter TargetName="ThumbBorder" Property="Background" Value="#8A8A8A"/>
+                                                                                </Trigger>
+                                                                            </ControlTemplate.Triggers>
+                                                                        </ControlTemplate>
+                                                                    </Thumb.Template>
+                                                                </Thumb>
+                                                            </Track.Thumb>
+                                                        </Track>
+                                                    </Grid>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </ScrollViewer.Resources>
                                 <ItemsPresenter/>
                             </ScrollViewer>
                             <Border Grid.Row="1"
