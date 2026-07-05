@@ -253,6 +253,32 @@
                     </ItemsPanelTemplate>
                 </TabControl.ItemsPanel>
 
+                <!-- Host the header strip in a horizontal scroller so it scrolls,
+                     rather than wraps, when the window is too narrow for all tabs. -->
+                <TabControl.Template>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid KeyboardNavigation.TabNavigation="Local">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <ScrollViewer Grid.Row="0"
+                                          HorizontalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Disabled"
+                                          Focusable="False"
+                                          Padding="0">
+                                <ItemsPresenter/>
+                            </ScrollViewer>
+                            <Border Grid.Row="1"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}">
+                                <ContentPresenter ContentSource="SelectedContent"/>
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </TabControl.Template>
+
                 <!-- ══════════════════════════════════════ TAB: TREE -->
                 <TabItem Header="Tree">
                     <Grid Background="#080808">
