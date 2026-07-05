@@ -246,8 +246,15 @@
                         TabStripPlacement="Top"
                         Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
 
+                <!-- Keep all tab headers on a single row (no wrapping to a second line) -->
+                <TabControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </TabControl.ItemsPanel>
+
                 <!-- ══════════════════════════════════════ TAB: TREE -->
-                <TabItem Header="  Tree  ">
+                <TabItem Header="Tree">
                     <Grid Background="#080808">
 
                         <!-- Tree view -->
@@ -412,14 +419,14 @@
                 </TabItem>
 
                 <!-- ══════════════════════════════════ TAB: TREEMAP -->
-                <TabItem Header="  Treemap  ">
+                <TabItem Header="Treemap">
                     <ctrl:TreemapControl
                         RootNode="{Binding TreemapRoot}"
                         SelectedDiskNode="{Binding TreemapSelectedNode, Mode=OneWayToSource}"/>
                 </TabItem>
 
                 <!-- ══════════════════════════════ TAB: LARGEST FILES -->
-                <TabItem Header="  Largest Files  ">
+                <TabItem Header="Largest Files">
                     <Grid Background="#080808">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -491,7 +498,7 @@
                 </TabItem>
 
                 <!-- ══════════════════════════════════ TAB: EXTENSIONS -->
-                <TabItem Header="  Extensions  ">
+                <TabItem Header="Extensions">
                     <DataGrid ItemsSource="{Binding ExtensionStats}"
                               IsReadOnly="True"
                               AutoGenerateColumns="False"
@@ -514,7 +521,7 @@
                 </TabItem>
 
                 <!-- ══════════════════════════════ TAB: EMPTY FOLDERS -->
-                <TabItem Header="  Empty Folders  ">
+                <TabItem Header="Empty Folders">
                     <DataGrid x:Name="EmptyGrid"
                               ItemsSource="{Binding EmptyFolders}"
                               SelectedItem="{Binding SelectedEmptyFolder}"
@@ -550,7 +557,7 @@
                 </TabItem>
 
                 <!-- ══════════════════════════════════ TAB: DUPLICATES -->
-                <TabItem Header="  Duplicates  ">
+                <TabItem Header="Duplicates">
                     <Grid Background="#080808">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
