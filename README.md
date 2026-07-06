@@ -25,6 +25,31 @@ On NTFS drives it reads the Master File Table directly via the USN journal (the 
 
 ---
 
+## Screenshots
+
+<p align="center">
+  <img src="RoninDiskManager/Assets/images/tree-view.png" width="820" alt="Ronin Disk Manager tree view with tabbed navigation"/>
+</p>
+
+<table>
+  <tr>
+    <td align="center" width="50%"><img src="RoninDiskManager/Assets/images/disk-treemap.png" alt="Treemap view"/><br/><b>Treemap with age heatmap</b></td>
+    <td align="center" width="50%"><img src="RoninDiskManager/Assets/images/disk-analysis.png" alt="Analysis"/><br/><b>Duplicate and largest-file analysis</b></td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><img src="RoninDiskManager/Assets/images/disk-cleanup.png" alt="Cleanup"/><br/><b>Age-based cleanup, previewed before it runs</b></td>
+    <td align="center" width="50%"><img src="RoninDiskManager/Assets/images/disk-fileops.png" alt="File operations"/><br/><b>Safe file ops with a live command preview</b></td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><img src="RoninDiskManager/Assets/images/disk-scan.png" alt="MFT scan"/><br/><b>MFT scan populating the tree</b></td>
+    <td align="center" width="50%"><img src="RoninDiskManager/Assets/images/disk-tools.png" alt="Windows tools"/><br/><b>Built-in Windows maintenance tools</b></td>
+  </tr>
+</table>
+
+> Note: these screenshots live under `RoninDiskManager/Assets/images/` for display on GitHub only. They are excluded from the build (see the csproj), so they add nothing to the published exe.
+
+---
+
 ## Features
 
 ### Scanning and visualization

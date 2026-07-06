@@ -22,6 +22,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- README / GitHub screenshots only. Explicitly kept OUT of the build so they
+         are never embedded in or copied beside the published exe (they are
+         referenced solely by README.md on GitHub). -->
+    <Resource Remove="Assets\images\**" />
+    <Content Remove="Assets\images\**" />
+    <EmbeddedResource Remove="Assets\images\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="MahApps.Metro" Version="2.4.10" />
   </ItemGroup>
